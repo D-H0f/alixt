@@ -97,4 +97,62 @@ impl<T> AList<T> {
             .into_inner()
             .into_data())
     }
+    /*pub fn iter(&self) -> Iter<T> {
+        Iter { next: self.head.clone() }
+    }*/
+}
+
+pub struct IntoIter<T>(AList<T>);
+
+impl<T> IntoIterator for AList<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter(self)
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+// not planned until AList is more fleshed out and ready to be converted to unsafe
+/*
+pub struct Iter<T> {
+    next: Option<StrongNode<T>>,
+}
+
+impl<T> Iterator for Iter<T> {
+    type Item = StrongNode<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.take().map(|rc| {
+            self.next = rc.borrow().next();
+            rc.clone()
+        })
+    }
+}*/
+
+
+
+
+
+use std::fmt;
+impl<T: fmt::Debug> fmt::Debug for AList<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.write_str("placeholder");
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AList;
+    #[test]
+    fn placeholder() {
+        let list: AList<u8> = AList::new();
+        println!("{:?} {:#?}", list, list);
+    }
 }
