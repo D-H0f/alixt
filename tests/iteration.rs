@@ -17,3 +17,16 @@ fn into_iterator_works() {
         "Hello".to_string(),
     ]);
 }
+
+#[test]
+fn rev_on_into_iter() {
+    let mut list: AList<usize> = AList::new();
+
+    (0..10).for_each(|i| list.push(i));
+
+    list
+        .into_iter()
+        .rev()
+        .enumerate()
+        .for_each(|(i, v)| assert_eq!(i, v));
+}

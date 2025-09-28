@@ -97,6 +97,22 @@ impl<T> AList<T> {
             .into_inner()
             .into_data())
     }
+    pub fn reversed(&mut self) {
+        let mut current = self
+            .head
+            .take()
+            .inspect(|rc| {
+                self.tail = Some(Rc::downgrade(&rc.clone()));
+            });
+        let mut prev = None;
+        while let Some(current_rc) = current {
+            let mut node = current_rc.borrow_mut();
+            current = node.next().clone();
+            node.switch();
+            prev = Some(current_rc.clone());
+        };
+        self.head = prev;
+    }
     /*pub fn iter(&self) -> Iter<T> {
         Iter { next: self.head.clone() }
     }*/
@@ -119,6 +135,13 @@ impl<T> Iterator for IntoIter<T> {
         self.0.pop()
     }
 }
+
+impl<T> DoubleEndedIterator for IntoIter<T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.pop_back()
+    }
+}
+
 // not planned until AList is more fleshed out and ready to be converted to unsafe
 /*
 pub struct Iter<T> {
@@ -139,7 +162,7 @@ impl<T> Iterator for Iter<T> {
 
 
 
-use std::fmt;
+use std::{any::type_name_of_val, fmt};
 impl<T: fmt::Debug> fmt::Debug for AList<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.write_str("placeholder");

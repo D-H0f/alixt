@@ -99,6 +99,12 @@ impl<T> Node<T> {
     pub(super) fn replace_data(&mut self, data: T) -> T {
         std::mem::replace(self.data.as_mut().unwrap(), data)
     }
+    pub(super) fn switch(&mut self) {
+        let next = self.prev.take().and_then(|weak| weak.upgrade());
+        let prev = self.next.take().map(|rc| Rc::downgrade(&rc));
+        self.prev = prev;
+        self.next = next;
+    }
 }
 
 #[cfg(test)]

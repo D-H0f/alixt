@@ -85,3 +85,38 @@ fn drops_many_without_overflow() {
     });
     assert_eq!(list.len(), 1_000_000);
 }
+
+#[test]
+fn basic_reversed() {
+    let mut list: AList<u8> = AList::new();
+    (0..10).for_each(|i| list.push(i));
+    list.reversed();
+    (0..10).for_each(|i| assert_eq!(Some(i), list.pop()));
+}
+
+#[test]
+fn reversed_edge_cases() {
+    let mut list: AList<u8> = AList::new();
+    // empty list
+    list.reversed();
+    assert_eq!(list.len(), 0);
+    // single item list
+    list.push(101);
+    list.reversed();
+    assert_eq!(list.pop_back(), Some(101));
+    // idk, some more fun stuff
+    (0..10).for_each(|i| {
+        list.push(i);
+        list.reversed();
+    });
+    let mut switch = true;
+    (0..10).rev().for_each(|i| {
+        if switch {
+            assert_eq!(list.pop_back(), Some(i));
+            switch = false;
+        } else {
+            assert_eq!(list.pop(), Some(i));
+            switch = true;
+        }
+    });
+}
