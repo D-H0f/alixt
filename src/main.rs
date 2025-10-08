@@ -2,8 +2,8 @@ use std::process::exit;
 
 use clap::Parser;
 
-use api_tester::{Args, request, parse_file, template};
-use api_tester::Error as ApiError;
+use alixt::{Args, request, parse_file, template};
+use alixt::Error as ApiError;
 
 
 fn main() {

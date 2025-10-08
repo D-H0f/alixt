@@ -1,21 +1,21 @@
 const TEMPLATE_TOML: &str = r#"
 # This is an example for the API tester.
-# The file can contain multiple [[runs]], each with its own set of requests.
+# The file can contain multiple [[run]], each with its own set of request.
 
 # A 'run' is a sequence of blocking tests. A failure in one run will not
 # prevent the next run from starting. This is useful for grouping tests
 # by category (e.g., "Account Tests", "Post Tests").
-[[runs]]
+[[run]]
 # A name for the test run or suite.
 name = "Account Management"
 
-# You can define default values for all requests within this run.
-# These can be overridden by individual requests.
+# You can define default values for all request within this run.
+# These can be overridden by individual request.
 url = "0.0.0.0"
 port = 7878
 
-  # Each request is defined by a [[runs.requests]] table
-  [[runs.requests]]
+  # Each request is defined by a [[run.request]] table
+  [[run.request]]
   # A descriptive name for the test case
   name = "Get All Accounts"
 
@@ -33,7 +33,7 @@ port = 7878
   # '''
 
   # Assertions to check against the response
-  [runs.requests.assert]
+  [run.request.assert]
   # The expected HTTP status code
   status = 200
   # If true, the test run will stop if the assertion fails
@@ -52,34 +52,34 @@ port = 7878
 ]
   '''
 
-  [[runs.requests]]
+  [[run.request]]
   name = "Get a non-existent account"
   method = "Get"
   # This request also uses the default url and port.
   target = "/accounts/999"
 
-  [runs.requests.assert]
+  [run.request.assert]
   status = 404
   breaking = false
 
-  [[runs.requests]]
+  [[run.request]]
   name = "Test an override"
   method = "Get"
   port = 8080 # This OVERRIDES the run default (7878) for this request only
   target = "/health"
 
-  [runs.requests.assert]
+  [run.request.assert]
   status = 200
   breaking = false
 
 # You can define another run here.
-# [[runs]]
+# [[run]]
 # name = "Another Test Suite"
 # ...
 "#;
 
 pub fn generate() -> Result<(), super::Error> {
-    std::fs::write("test_requests.toml", TEMPLATE_TOML)?;
-    println!("Template file created: 'test_requests.toml'");
+    std::fs::write("test_request.toml", TEMPLATE_TOML)?;
+    println!("Template file created: 'test_request.toml'");
     Ok(())
 }

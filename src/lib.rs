@@ -35,7 +35,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub runs: Vec<Run>,
+    pub run: Vec<Run>,
 }
 
 // holds multiple requests, contents are blocking
@@ -49,7 +49,7 @@ pub struct Run {
     pub target: Option<String>,
     pub body: Option<String>,
 
-    pub requests: Vec<Request>,
+    pub request: Vec<Request>,
     pub headers: Option<HashMap<String, String>>,
 }
 
@@ -239,11 +239,11 @@ pub fn parse_file(file: String) -> Result<bool, Error> {
 
     let mut all_runs_passed = true;
 
-    println!("[TEST]: Found {} runs", config.runs.len());
+    println!("[TEST]: Found {} runs", config.run.len());
 
     let mut all_runs = RunResults::new();
 
-    for run in config.runs {
+    for run in config.run {
         match execute_run(&run, &mut all_runs) {
             Ok(passed) => {
                 if !passed {
@@ -264,14 +264,14 @@ pub fn execute_run(run: &Run, all_runs: &mut RunResults) -> Result<bool, Error> 
     println!(
         "\n\n----Run {} starting with {} requests----",
         &run.name,
-        run.requests.len(),
+        run.request.len(),
     );
 
     let mut all_passed = true;
 
     let mut completed = Completed::new();
 
-    for req in &run.requests {
+    for req in &run.request {
         let mut passed = true;
         println!("\n-- Running Test: {} --", req.name);
 
