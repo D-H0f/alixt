@@ -1,0 +1,63 @@
+   Compiling api_tester v0.1.0 (/home/dev/proj/playground/learning_axum/api_tester)
+error: character constant must be escaped: `'`
+ --> src/template.rs:1:2
+  |
+1 | '''const TEMPLATE_TOML: &str = r#"
+  |  ^
+  |
+help: escape the character
+  |
+1 | '\''const TEMPLATE_TOML: &str = r#"
+  |  +
+
+error: empty character literal
+  --> src/template.rs:86:2
+   |
+86 | ''
+   |  ^ empty character literal
+
+error: expected item, found `'''const`
+ --> src/template.rs:1:1
+  |
+1 | '''const TEMPLATE_TOML: &str = r#"
+  | ^^^^^^^^ expected item
+  |
+  = note: for a full list of items that can appear in modules, see <https://doc.rust-lang.org/reference/items.html>
+
+warning: value assigned to `headers` is never read
+   --> src/lib.rs:217:17
+    |
+217 |         let mut headers: Option<HashMap<String, String>> = None; // Defaults to None
+    |                 ^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+
+warning: value assigned to `body` is never read
+   --> src/lib.rs:221:17
+    |
+221 |         let mut body: Option<String> = None; // Defualts to None
+    |                 ^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:218:13
+    |
+218 |         let mut url: String; // Panics if missing
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:219:13
+    |
+219 |         let mut port: String; // Panics if missing
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: `api_tester` (lib) generated 4 warnings
+error: could not compile `api_tester` (lib) due to 3 previous errors; 4 warnings emitted
