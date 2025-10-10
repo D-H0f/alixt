@@ -200,9 +200,12 @@ pub fn execute_run<W: Write>(
             body = run.body.clone();
         }
 
+        #[allow(unused)]
+        let mut status_code: u16 = 404;
         match request(writer, method, &headers, &url, &port, &target, &body) {
             Ok(response) => {
                 let status = response.status();
+                status_code = status.as_u16();
                 let body_text = response.text()?;
 
                 writeln!(
@@ -232,7 +235,7 @@ pub fn execute_run<W: Write>(
                     )?;
                     if req.assert.breaking {
                         writeln!(writer, "[TEST]: assertion was breaking, run terminated.")?;
-                        current_run.add(&req.name, false, true);
+                        current_run.add(&req.name, status.as_u16(), false, true);
                         break;
                     }
                 }
@@ -255,7 +258,7 @@ pub fn execute_run<W: Write>(
                                     writer,
                                     "[TEST]: assertion was breaking, run terminated."
                                 )?;
-                                current_run.add(&req.name, false, true); 
+                                current_run.add(&req.name, status.as_u16(), false, true); 
                                 break;
                             }
                         } else {
@@ -272,7 +275,7 @@ pub fn execute_run<W: Write>(
                         )?;
                         if req.assert.breaking {
                             writeln!(writer, "[TEST]: assertion was breaking, run terminated.")?;
-                            current_run.add(&req.name, false, true);
+                            current_run.add(&req.name, status.as_u16(), false, true);
                             break;
                         }
                     }
@@ -281,11 +284,11 @@ pub fn execute_run<W: Write>(
             Err(e) => {
                 writeln!(writer, "[ERROR] Request '{}' failed {e:#}", &req.name)?;
                 writeln!(writer, "[FATAL]: Halting test run due to request error")?;
-                current_run.add(&req.name, false, true);
+                current_run.add(&req.name, 404, false, true);
                 break;
             }
         }
-        current_run.add(&req.name, passed, false);
+        current_run.add(&req.name, status_code, passed, false);
     }
     writeln!(writer, "---- End of Tests ----")?;
     all_run_data.add(current_run);

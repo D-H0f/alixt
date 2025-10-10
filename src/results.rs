@@ -17,12 +17,20 @@ const BOTTOM_T: &str = "┴";
 const LEFT_T: &str = "├";
 const RIGHT_T: &str = "┤";
 
+pub struct TestData {
+    pub name: String,
+    pub status: u16,
+    pub passing: bool,
+    pub breaking: bool,
+}
+
 /// Holds the results for a request
 #[derive(Default)]
 pub struct RunData {
     name: String,
     /// test name, pass/fail, breaking
-    tests: Vec<(String, bool, bool)>,
+    //tests: Vec<(String, bool, bool)>,
+    tests: Vec<TestData>,
 }
 
 impl RunData {
@@ -32,7 +40,7 @@ impl RunData {
             tests: vec![],
         }
     }
-    pub fn add(&mut self, name: &str, passing: bool, breaking: bool) {
+    pub fn add(&mut self, name: &str, status: u16, passing: bool, breaking: bool) {
         let mut name = String::from(name);
 
         if name.len() > 20 {
@@ -41,25 +49,30 @@ impl RunData {
             panic!("test must have a name");
         }
 
-        self.tests.push((name, passing, breaking));
+        self.tests.push(TestData {
+            name,
+            status,
+            passing,
+            breaking,
+        });
     }
     pub fn print<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
         writeln!(writer, "[API]: {} tests completed:", self.tests.len())?;
-        for (name, passed, breaking) in self.tests.iter() {
-            let grade = if *passed {
+        for test in &self.tests {
+            let grade = if test.passing {
                 "[PASS]".to_string()
             } else {
                 "[FAIL]".to_string()
             };
-            writeln!(writer, "{grade} {name}")?;
-            if *breaking {
+            writeln!(writer, "{grade} {}", test.name)?;
+            if test.breaking {
                 writeln!(writer, "[API]: run stopped due to breaking assertion")?;
             }
         }
         Ok(())
     }
     pub fn is_pass(&self) -> bool {
-        self.tests.iter().all(|(_, passed, _)| *passed)
+        self.tests.iter().all(|test| test.passing)
     }
 }
 
@@ -104,17 +117,31 @@ impl AllRuns {
     pub fn pretty_print(&self) {
         let mut tables: Vec<Table> = vec![];
         for run in self.all.iter() {
-            let mut table = Table::new(3);
+            let mut table = Table::new(4);
             table.title = run.name.blue();
-            table.push_header(vec!["".white(), "Result".blue(), "Name".blue()]);
-            for (name, passed, breaking) in &run.tests {
-                let passed = if *passed {
+            table.push_header(vec![
+                "".white(),
+                "Result".blue(),
+                "Name".blue(),
+                "Code".blue(),
+            ]);
+            for test in &run.tests {
+                let passed = if test.passing {
                     "PASS".green()
                 } else {
                     "FAIL".red()
                 };
-                let breaking = if *breaking { "BREAK".red() } else { "".white() };
-                table.push_row(vec![breaking, passed, name.yellow()]);
+                let breaking = if test.breaking {
+                    "BREAK".red()
+                } else {
+                    "".white()
+                };
+                table.push_row(vec![
+                    breaking,
+                    passed,
+                    test.name.yellow(),
+                    format!("{}", test.status).yellow(),
+                ]);
             }
             tables.push(table);
         }
@@ -163,13 +190,43 @@ impl AllRuns {
         }
 
         if self.all_passed() {
-            println!("\n{}{}{}", TOP_LEFT.blue(), HORIZONTAL.repeat(7).blue(), TOP_RIGHT.blue());
-            println!("{}{}{}", VERTICAL.blue(), "SUCCESS".green(), VERTICAL.blue());
-            println!("{}{}{}", BOTTOM_LEFT.blue(), HORIZONTAL.repeat(7).blue(), BOTTOM_RIGHT.blue());
+            println!(
+                "\n{}{}{}",
+                TOP_LEFT.blue(),
+                HORIZONTAL.repeat(7).blue(),
+                TOP_RIGHT.blue()
+            );
+            println!(
+                "{}{}{}",
+                VERTICAL.blue(),
+                "SUCCESS".green(),
+                VERTICAL.blue()
+            );
+            println!(
+                "{}{}{}",
+                BOTTOM_LEFT.blue(),
+                HORIZONTAL.repeat(7).blue(),
+                BOTTOM_RIGHT.blue()
+            );
         } else {
-            println!("\n{}{}{}", TOP_LEFT.yellow(), HORIZONTAL.repeat(6).yellow(), TOP_RIGHT.yellow());
-            println!("{}{}{}", VERTICAL.yellow(), "FAILED".red(), VERTICAL.yellow());
-            println!("{}{}{}", BOTTOM_LEFT.yellow(), HORIZONTAL.repeat(6).yellow(), BOTTOM_RIGHT.yellow())
+            println!(
+                "\n{}{}{}",
+                TOP_LEFT.yellow(),
+                HORIZONTAL.repeat(6).yellow(),
+                TOP_RIGHT.yellow()
+            );
+            println!(
+                "{}{}{}",
+                VERTICAL.yellow(),
+                "FAILED".red(),
+                VERTICAL.yellow()
+            );
+            println!(
+                "{}{}{}",
+                BOTTOM_LEFT.yellow(),
+                HORIZONTAL.repeat(6).yellow(),
+                BOTTOM_RIGHT.yellow()
+            )
         }
     }
 
@@ -216,7 +273,11 @@ impl Table {
     }
     fn push_header(&mut self, headers: Vec<ColoredString>) {
         if headers.len() != self.columns {
-            panic!("wrong number of columns, must be {}", self.columns);
+            panic!(
+                "wrong number of columns, must be {}, got {}",
+                self.columns,
+                headers.len()
+            );
         }
         for (i, item) in headers.into_iter().enumerate() {
             let column_key = format!("c{i}");
@@ -231,7 +292,11 @@ impl Table {
     }
     fn push_row(&mut self, row: Vec<ColoredString>) {
         if row.len() != self.columns {
-            panic!("wrong number of columns, must be {}", self.columns);
+            panic!(
+                "wrong number of columns, must be {}, got {}",
+                self.columns,
+                row.len()
+            );
         }
         for (i, item) in row.into_iter().enumerate() {
             let column_key = format!("c{i}");
@@ -266,7 +331,7 @@ impl Table {
             format!("{c_string}{spacer}").white()
         }
     }
- 
+
     fn print(&self, border: bool, divider: bool) {
         let table_width = self.max_width() + self.columns - 1;
         let title = if self.title.len() > self.max_width() {
@@ -284,9 +349,9 @@ impl Table {
             print!("{}\n", TOP_RIGHT.blue());
             print!("{}", VERTICAL.blue());
         }
-        let pad_l = " ".repeat((table_width - title.len())/2);
-        let pad_r = " ".repeat(table_width - title.len() - (table_width - title.len())/2);
-        print!("{}{}{}",pad_l , title, pad_r);
+        let pad_l = " ".repeat((table_width - title.len()) / 2);
+        let pad_r = " ".repeat(table_width - title.len() - (table_width - title.len()) / 2);
+        print!("{}{}{}", pad_l, title, pad_r);
 
         if border {
             print!("{}\n", VERTICAL.blue());
