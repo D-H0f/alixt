@@ -1,11 +1,20 @@
 use std::collections::HashMap;
+use std::io::Write;
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use reqwest::blocking::{self, Response};
 use serde_json::Value;
 use thiserror::Error;
 
 pub mod template;
+mod config;
+
+pub use config::*;
+use Method::*;
+
+mod results;
+
+pub use results::*;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -20,58 +29,14 @@ pub enum Error {
 
     #[error("Failed to parse JSON body")]
     Json(#[from] serde_json::Error),
+
+    #[error("Missing url")]
+    MissingUrl,
+
+    #[error("Missing port")]
+    MissingPort,
 }
 
-#[derive(ValueEnum, Clone, Debug, Deserialize)]
-pub enum Method {
-    Get,
-    Post,
-    Put,
-    Delete,
-}
-use Method::*;
-
-use serde::Deserialize;
-
-#[derive(Deserialize, Debug)]
-pub struct Config {
-    pub run: Vec<Run>,
-}
-
-// holds multiple requests, contents are blocking
-#[derive(Deserialize, Debug)]
-pub struct Run {
-    pub name: String,
-    // These fields are the defaults for all requests in the run
-    pub method: Option<Method>,
-    pub url: Option<String>,
-    pub port: Option<u16>,
-    pub target: Option<String>,
-    pub body: Option<String>,
-
-    pub request: Vec<Request>,
-    pub headers: Option<HashMap<String, String>>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Request {
-    pub name: String,
-    pub method: Option<Method>,
-    pub url: Option<String>,
-    pub port: Option<u16>,
-    pub target: Option<String>,
-    pub body: Option<String>,
-
-    pub headers: Option<HashMap<String, String>>,
-    pub assert: Assert,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Assert {
-    pub status: u16,
-    pub breaking: bool,
-    pub body: Option<String>,
-}
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -82,6 +47,10 @@ pub struct Args {
     /// Run requests from a .toml file instead of command-line flags.
     #[arg(short, long)]
     pub file: Option<String>,
+
+    /// displays more detailed output for each request
+    #[arg(short, long)]
+    pub verbose: bool,
 
     #[arg(short, long, value_enum, default_value_t = Method::Get)]
     pub method: Method,
@@ -100,7 +69,8 @@ pub struct Args {
     pub body: Option<String>,
 }
 
-pub fn request(
+pub fn request<W: Write>(
+    writer: &mut W,
     method: Method,
     headers: &Option<HashMap<String, String>>,
     url: &String,
@@ -132,148 +102,51 @@ pub fn request(
         None => request_builder,
     };
 
-    println!("[TEST]: Sending {:#?} to {url:#?}", &body);
+    writeln!(writer, "[TEST]: Sending {:#?} to {url:#?}", &body)?;
     let response = request.send()?;
 
     Ok(response)
 }
-
-/// Holds the results for a un
-struct Completed {
-    tests: Vec<(String, bool, bool)>,
-}
-
-impl Completed {
-    fn new() -> Self {
-        Self { tests: vec![] }
-    }
-    fn add(&mut self, name: &str, passing: bool, breaking: bool) {
-        let mut name = String::from(name);
-
-        if name.len() > 20 {
-            name = format!("{}...", &name[..20]);
-        } else if name.is_empty() {
-            panic!("test must have a name");
-        }
-
-        self.tests.push((name, passing, breaking));
-    }
-    fn print(&self) {
-        println!("[API]: {} tests completed:", self.tests.len());
-        self.tests.iter().for_each(|(name, passed, breaking)| {
-            let grade = if *passed {
-                "[PASS]".to_string()
-            } else {
-                "[FAIL]".to_string()
-            };
-            println!("{grade} {name}");
-            if *breaking {
-                println!("[API]: run stopped due to breaking assertion");
-            }
-        });
-    }
-}
-
-enum TestResult {
-    Pass(Option<Completed>),
-    Fail(Option<Completed>),
-}
-use TestResult::*;
-
-impl TestResult {
-    fn is_pass(&self) -> bool {
-        match self {
-            Pass(_) => true,
-            Fail(_) => false,
-        }
-    }
-    fn is_fail(&self) -> bool {
-        !self.is_pass()
-    }
-    fn unwrap(&mut self) -> Completed {
-        match self {
-            Pass(test) => test.take().unwrap(),
-            Fail(test) => test.take().unwrap(),
-        }
-    }
-}
-
-/// Holds the results for all runs
-pub struct RunResults {
-    all: Vec<TestResult>,
-}
-
-impl RunResults {
-    fn new() -> Self {
-        Self { all: vec![] }
-    }
-
-    fn add(&mut self, test: TestResult) {
-        self.all.push(test);
-    }
-
-    fn display_results(&mut self) {
-        let passing = self
-            .all
-            .iter()
-            .filter(|test| test.is_pass())
-            .fold(0u16, |x, _| x + 1);
-        let failing = self
-            .all
-            .iter()
-            .filter(|test| test.is_fail())
-            .fold(0u16, |x, _| x + 1);
-        println!("\n\n\n\n[TEST]: All runs finished. {passing} passing, {failing} failing.");
-        self.all.iter_mut().enumerate().for_each(|(index, test)| {
-            let test = test.unwrap();
-
-            println!("\n\n----[RUN]-{index}----\n");
-            test.print();
-        });
-    }
-}
-
-pub fn parse_file(file: String) -> Result<bool, Error> {
+pub fn parse_file<W: Write>(writer: &mut W, file: String) -> Result<AllRuns, Error> {
     let content = std::fs::read_to_string(&file)?;
     let config: Config = toml::from_str(&content)?;
 
-    let mut all_runs_passed = true;
+    writeln!(writer, "[TEST]: Found {} runs", config.run.len())?;
 
-    println!("[TEST]: Found {} runs", config.run.len());
-
-    let mut all_runs = RunResults::new();
+    let mut all_run_data = AllRuns::new();
 
     for run in config.run {
-        match execute_run(&run, &mut all_runs) {
-            Ok(passed) => {
-                if !passed {
-                    all_runs_passed = passed;
-                }
-            }
-            Err(e) => {
-                println!("[ERROR] run {} encounterded an error: {e:#?}", &run.name);
-            }
+        if let Err(e) = execute_run(writer, &run, &mut all_run_data) {
+            writeln!(
+                writer,
+                "[ERROR] run {} encounterded an error: {e:#?}",
+                &run.name
+            )?;
         }
     }
 
-    all_runs.display_results();
-    Ok(all_runs_passed)
+    all_run_data.display_results(writer)?;
+    Ok(all_run_data)
 }
 
-pub fn execute_run(run: &Run, all_runs: &mut RunResults) -> Result<bool, Error> {
-    println!(
+pub fn execute_run<W: Write>(
+    writer: &mut W,
+    run: &Run,
+    all_run_data: &mut AllRuns,
+) -> Result<(), Error> {
+    writeln!(
+        writer,
         "\n\n----Run {} starting with {} requests----",
         &run.name,
         run.request.len(),
-    );
+    )?;
 
-    let mut all_passed = true;
 
-    let mut completed = Completed::new();
+    let mut current_run = RunData::new(run.name.clone());
 
     for req in &run.request {
         let mut passed = true;
-        println!("\n-- Running Test: {} --", req.name);
+        writeln!(writer, "\n-- Running Test: {} --", req.name)?;
 
         // Filtering requests to use specific arguments, or provided defaults.
         let mut method: Method = Get; // Defaults to GET
@@ -304,7 +177,7 @@ pub fn execute_run(run: &Run, all_runs: &mut RunResults) -> Result<bool, Error> 
         } else if let Some(found) = &run.url {
             url = found.to_string();
         } else {
-            panic!("Must have either a request url or default url in the .toml")
+            return Err(Error::MissingUrl);
         }
 
         if let Some(found) = req.port {
@@ -312,7 +185,7 @@ pub fn execute_run(run: &Run, all_runs: &mut RunResults) -> Result<bool, Error> 
         } else if let Some(found) = run.port {
             port = format!("{found}");
         } else {
-            panic!("Must have either a request port or default port in the .toml")
+            return Err(Error::MissingPort);
         }
 
         if let Some(found) = &req.target {
@@ -327,98 +200,94 @@ pub fn execute_run(run: &Run, all_runs: &mut RunResults) -> Result<bool, Error> 
             body = run.body.clone();
         }
 
-        match request(method, &headers, &url, &port, &target, &body) {
+        match request(writer, method, &headers, &url, &port, &target, &body) {
             Ok(response) => {
                 let status = response.status();
                 let body_text = response.text()?;
 
-                println!("[PASS]: '{}' returned a response '{}'", &req.name, status.as_str());
+                writeln!(
+                    writer,
+                    "[PASS]: '{}' returned a response '{}'",
+                    &req.name,
+                    status.as_str()
+                )?;
 
                 if body_text.is_empty() {
-                    println!("[API]: Response body is empty")
+                    writeln!(writer, "[API]: Response body is empty")?;
                 } else {
-                    println!(
+                    writeln!(
+                        writer,
                         "[API]: Response body is {:#?}",
                         serde_json::from_str::<Value>(&body_text)?,
-                    );
+                    )?;
                 }
 
                 if status.as_u16() != req.assert.status {
                     passed = false;
-                    println!(
+                    writeln!(
+                        writer,
                         "[FAIL]: Expected status {}, got {}",
                         req.assert.status,
                         status.as_u16(),
-                    );
+                    )?;
                     if req.assert.breaking {
-                        println!("[TEST]: assertion was breaking, run terminated.");
-                        completed.add(&req.name, false, true);
-                        all_passed = false;
+                        writeln!(writer, "[TEST]: assertion was breaking, run terminated.")?;
+                        current_run.add(&req.name, false, true);
                         break;
                     }
                 }
 
                 if let Some(expected) = &req.assert.body {
-                    let expected_json: Value = serde_json::from_str(&expected)?;
+                    let expected_json: Value = serde_json::from_str(expected)?;
 
                     if !body_text.is_empty() {
                         let body_json: Value = serde_json::from_str(&body_text)?;
 
-                        if &expected_json != &body_json {
+                        if expected_json != body_json {
                             passed = false;
-                            println!(
+                            writeln!(
+                                writer,
                                 "[FAIL]: Expected {expected_json:#?}, got {:#?}",
                                 &body_json
-                            );
+                            )?;
                             if req.assert.breaking {
-                                println!("[TEST]: assertion was breaking, run terminated.");
-                                completed.add(&req.name, false, true);
-                                all_passed = false;
+                                writeln!(
+                                    writer,
+                                    "[TEST]: assertion was breaking, run terminated."
+                                )?;
+                                current_run.add(&req.name, false, true); 
                                 break;
                             }
                         } else {
-                            println!("[PASS]: recieved correct body\n{:#?}", &body_json);
+                            writeln!(writer, "[PASS]: recieved correct body\n{:#?}", &body_json)?;
                         }
+                    } else if expected.is_empty() {
+                        writeln!(writer, "[PASS]: Both bodies are empty as expected")?;
                     } else {
-                        if expected.is_empty() {
-                            println!("[PASS]: Both bodies are empty as expected");
-                        } else {
-                            passed = false;
-                            println!(
-                                "[FAIL]: Got empty body in response, expected:\n{:#?}",
-                                &expected_json
-                            );
-                            if req.assert.breaking {
-                                println!("[TEST]: assertion was breaking, run terminated.");
-                                completed.add(&req.name, false, true);
-                                all_passed = false;
-                                break;
-                            }
+                        passed = false;
+                        writeln!(
+                            writer,
+                            "[FAIL]: Got empty body in response, expected:\n{:#?}",
+                            &expected_json
+                        )?;
+                        if req.assert.breaking {
+                            writeln!(writer, "[TEST]: assertion was breaking, run terminated.")?;
+                            current_run.add(&req.name, false, true);
+                            break;
                         }
                     }
                 }
             }
             Err(e) => {
-                println!("[ERROR] Request '{}' failed {e:#}", &req.name);
-                println!("[FATAL]: Halting test run due to request error");
-                completed.add(&req.name, false, true);
-                all_passed = false;
+                writeln!(writer, "[ERROR] Request '{}' failed {e:#}", &req.name)?;
+                writeln!(writer, "[FATAL]: Halting test run due to request error")?;
+                current_run.add(&req.name, false, true);
                 break;
             }
         }
-        completed.add(&req.name, passed, false);
-        if !passed {
-            all_passed = passed.clone();
-        }
+        current_run.add(&req.name, passed, false);
     }
-
-    println!("---- End of Tests ----");
-
-    if all_passed {
-        all_runs.add(Pass(Some(completed)));
-    } else {
-        all_runs.add(Fail(Some(completed)));
-    }
-
-    Ok(all_passed)
+    writeln!(writer, "---- End of Tests ----")?;
+    all_run_data.add(current_run);
+    Ok(())
 }
