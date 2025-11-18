@@ -2,7 +2,7 @@
 name = "alixt"
 version = "0.6.1"
 edition = "2024"
-license = "MIT OR Apache-2.0"
+license = "GPL-3.0-or-later"
 description = "A command line http API testing utility with TOML configuration"
 repository = "https://github.com/D-H0f/alixt"
 
