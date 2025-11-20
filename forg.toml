@@ -1,0 +1,17 @@
+# Run 1: A full suite of passing tests
+[[run]]
+name = "Full Passing Suite"
+url = "10.27.27.30"
+port = 7878
+
+headers = { "Content-Type" = "application/json" }
+
+
+  [[run.request]]
+  name = "test"
+  method = "Get"
+  target = "/"
+  body = ""
+  [run.request.assert]
+  status = 200
+  breaking = false
