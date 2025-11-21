@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -33,13 +32,6 @@ const TOP_T: &str = "┬";
 const BOTTOM_T: &str = "┴";
 const LEFT_T: &str = "├";
 const RIGHT_T: &str = "┤";
-
-pub struct TestData {
-    pub name: String,
-    pub status: u16,
-    pub passing: bool,
-    pub breaking: bool,
-}
 
 /// Holds the results for a request
 #[derive(Default)]
@@ -252,34 +244,60 @@ impl AllRuns {
     }
 }
 
-/*fn print(&self) {
-    println!("{}", self.title);
-    self.header_row
-        .cells
-        .iter()
-        .for_each(|cell| print!("{cell}"));
-    print!("\n");
-    self.rows.iter().for_each(|row| {
-        row.cells.iter().for_each(|cell| print!("{cell}"));
-        print!("\n");
-    });
-}*/
+#[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd, Ord)]
+enum Position {
+    Column(i16),
+    Row(i16),
+    Header(i16),
+    Meta,
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd, Ord)]
+struct Coord {
+    x: Position,
+    y: Position,
+}
+
+impl Coord {
+    fn item(col: i16, row: i16) -> Self {
+        Self {
+            x: Position::Column(col),
+            y: Position::Row(row),
+        }
+    }
+
+    fn meta(x: Position) -> Self {
+        Self {
+            x,
+            y: Position::Meta,
+        }
+    }
+}
+
+pub struct TestData {
+    pub name: String,
+    pub status: u16,
+    pub passing: bool,
+    pub breaking: bool,
+}
 
 struct Table {
     title: ColoredString,
     columns: usize,
     rows: usize,
-    data: HashMap<String, ColoredString>,
+    data: HashMap<Coord, ColoredString>,
 }
 
 impl Table {
     /// fixed size table
     fn new(width: usize) -> Self {
+        if width > i16::MAX as usize {
+            panic!("Width cannot be larger than {}", i16::MAX);
+        }
         let mut data = HashMap::new();
+        // insert starter values for column length measurment
         for i in 0..width {
-            let key = format!("c{i}");
-            let value = "".white();
-            data.insert(key, value);
+            data.insert(Coord::meta(Position::Column(i as i16)), "".white());
         }
         Self {
             title: "".white(),
@@ -297,12 +315,15 @@ impl Table {
             );
         }
         for (i, item) in headers.into_iter().enumerate() {
-            let column_key = format!("c{i}");
-            if item.len() > self.data.get(&column_key).unwrap().len() {
-                self.data.insert(column_key, item.clone());
+            if item.len() > self.col_width(i as i16) {
+                self.data
+                    .insert(Coord::meta(Position::Column(i as i16)), item.clone());
             }
-            let key = format!("h{i}");
-            if self.data.insert(key, item).is_some() {
+            if self
+                .data
+                .insert(Coord::meta(Position::Header(i as i16)), item)
+                .is_some()
+            {
                 panic!("cannot overwrite existing header");
             }
         }
@@ -316,30 +337,31 @@ impl Table {
             );
         }
         for (i, item) in row.into_iter().enumerate() {
-            let column_key = format!("c{i}");
-            if item.len() > self.data.get(&column_key).unwrap().len() {
+            let column_key = Coord::meta(Position::Column(i as i16));
+            if item.len() > self.col_width(i as i16) {
                 self.data.insert(column_key, item.clone());
             }
-            let key = format!("r{}{}", self.rows, i);
+            let key = Coord::item(i as i16, self.rows as i16);
             if self.data.insert(key, item).is_some() {
                 panic!("cannot overwrite existing row");
             }
         }
         self.rows += 1;
     }
-    fn spacer(&self, width: String, minus: String) -> String {
-        " ".repeat(self.data.get(&width).unwrap().len() - self.data.get(&minus).unwrap().len())
+    fn spacer(&self, width: &Coord, minus: &Coord) -> String {
+        " ".repeat(self.data.get(width).unwrap().len() - self.data.get(minus).unwrap().len())
     }
     fn max_width(&self) -> usize {
-        (0..self.columns).fold(0, |acc, n| {
-            acc + self.data.get(&format!("c{n}")).unwrap().len()
-        })
+        (0..self.columns).fold(0, |acc, n| acc + self.col_width(n as i16))
     }
-    fn col_width(&self, i: usize) -> usize {
-        self.data.get(&format!("c{i}")).unwrap().len()
+    fn col_width(&self, i: i16) -> usize {
+        self.data
+            .get(&Coord::meta(Position::Column(i)))
+            .unwrap()
+            .len()
     }
-    fn get(&self, key: String) -> &ColoredString {
-        self.data.get(&key).unwrap()
+    fn get(&self, key: &Coord) -> &ColoredString {
+        self.data.get(key).unwrap()
     }
     fn _combine(&self, c_string: ColoredString, spacer: &str) -> ColoredString {
         if let Some(color) = c_string.fgcolor {
@@ -361,7 +383,10 @@ impl Table {
             print!("{}", TOP_LEFT.blue());
             print!("{}", HORIZONTAL.repeat(self.col_width(0)).blue());
             for col in 1..self.columns {
-                print!("{}", HORIZONTAL.repeat(self.col_width(col) + 1).blue());
+                print!(
+                    "{}",
+                    HORIZONTAL.repeat(self.col_width(col as i16) + 1).blue()
+                );
             }
             print!("{}\n", TOP_RIGHT.blue());
             print!("{}", VERTICAL.blue());
@@ -378,7 +403,7 @@ impl Table {
                 print!(
                     "{}{}",
                     TOP_T.blue(),
-                    HORIZONTAL.repeat(self.col_width(col)).blue()
+                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
                 );
             }
             print!("{}\n", RIGHT_T.blue());
@@ -386,14 +411,29 @@ impl Table {
         } else {
             print!("\n")
         }
-        print!("{}", self.get("h0".to_string()));
-        print!("{}", self.spacer(format!("c0"), format!("h0")));
+        print!(
+            "{}",
+            self.get(&Coord::meta(Position::Header(0)))
+        );
+        print!(
+            "{}",
+            self.spacer(
+                &Coord::meta(Position::Column(0)),
+                &Coord::meta(Position::Header(0))
+            )
+        );
         for col in 1..self.columns {
             if divider {
                 print!("{}", VERTICAL.blue());
             }
-            print!("{}", self.get(format!("h{col}")));
-            print!("{}", self.spacer(format!("c{col}"), format!("h{col}")));
+            print!(
+                "{}",
+                self.get(&Coord::meta(Position::Header(col as i16)))
+            );
+            print!("{}", self.spacer(
+                &Coord::meta(Position::Column(col as i16)),
+                &Coord::meta(Position::Header(col as i16))
+            ));
         }
         if border {
             print!("{}\n", VERTICAL.blue());
@@ -403,7 +443,7 @@ impl Table {
                 print!(
                     "{}{}",
                     CROSS.blue(),
-                    HORIZONTAL.repeat(self.col_width(col)).blue()
+                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
                 );
             }
             print!("{}\n", RIGHT_T.blue());
@@ -414,14 +454,20 @@ impl Table {
             if border {
                 print!("{}", VERTICAL.blue());
             }
-            print!("{}", self.get(format!("r{row}0")));
-            print!("{}", self.spacer("c0".to_string(), format!("r{row}0")));
+            print!("{}", self.get(&Coord::item(row as i16, 0)));
+            print!("{}", self.spacer(
+                &Coord::meta(Position::Column(0)),
+                &Coord::item(row as i16, 0)
+            ));
             for col in 1..self.columns {
                 if divider {
                     print!("{}", VERTICAL.blue());
                 }
-                print!("{}", self.get(format!("r{row}{col}")));
-                print!("{}", self.spacer(format!("c{col}"), format!("r{row}{col}")));
+                print!("{}", self.get(&Coord::item(col as i16, row as i16)));
+                print!("{}", self.spacer(
+                    &Coord::meta(Position::Column(col as i16)),
+                    &Coord::item(col as i16, row as i16)
+                ));
             }
             if border {
                 print!("{}", VERTICAL.blue());
@@ -435,7 +481,7 @@ impl Table {
                 print!(
                     "{}{}",
                     BOTTOM_T.blue(),
-                    HORIZONTAL.repeat(self.col_width(col)).blue()
+                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
                 );
             }
             print!("{}", BOTTOM_RIGHT.blue());
