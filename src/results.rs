@@ -17,9 +17,9 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::AlixtError;
+use crate::{AlixtError, table::{Table, TableResult}};
 
-use colored::{ColoredString, Colorize};
+use colored::Colorize;
 
 const TOP_LEFT: &str = "╭";
 const TOP_RIGHT: &str = "╮";
@@ -124,16 +124,13 @@ impl AllRuns {
     }
 
     pub fn pretty_print(&self) {
-        let mut tables: Vec<Table> = vec![];
+        let mut tables: Vec<Table<4>> = vec![];
         for run in self.all.iter() {
-            let mut table = Table::new(4);
-            table.title = run.name.blue();
-            table.push_header(vec![
-                "".white(),
-                "Result".blue(),
-                "Name".blue(),
-                "Code".blue(),
-            ]);
+            let mut table = Table::<4>::new()
+                .title(run.name.blue())
+                .headers(["".white(), "Result".blue(), "Name".blue(), "Code".blue()])
+                .collect()
+                .unwrap();
             for test in &run.tests {
                 let passed = if test.passing {
                     "PASS".green()
@@ -145,12 +142,14 @@ impl AllRuns {
                 } else {
                     "".white()
                 };
-                table.push_row(vec![
+                if let Err(e) = table.push_row([
                     breaking,
                     passed,
                     test.name.yellow(),
                     format!("{}", test.status).yellow(),
-                ]);
+                ]) {
+                    eprintln!("ERROR: '{e}'");
+                }
             }
             tables.push(table);
         }
@@ -195,7 +194,9 @@ impl AllRuns {
         );
         for table in tables {
             println!("\n");
-            table.print(true, true);
+            if let Err(e) = table.render(&mut std::io::stdout()) {
+                eprintln!("ERROR: '{e}'");
+            }
         }
 
         if self.all_passed() {
@@ -244,266 +245,10 @@ impl AllRuns {
     }
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd, Ord)]
-enum Position {
-    Column(i16),
-    Row(i16),
-    Header(i16),
-    Meta,
-}
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd, Ord)]
-struct Coord {
-    x: Position,
-    y: Position,
-}
-
-impl Coord {
-    fn item(col: i16, row: i16) -> Self {
-        Self {
-            x: Position::Column(col),
-            y: Position::Row(row),
-        }
-    }
-
-    fn meta(x: Position) -> Self {
-        Self {
-            x,
-            y: Position::Meta,
-        }
-    }
-}
 
 pub struct TestData {
     pub name: String,
     pub status: u16,
     pub passing: bool,
     pub breaking: bool,
-}
-
-struct Table {
-    title: ColoredString,
-    columns: usize,
-    rows: usize,
-    data: HashMap<Coord, ColoredString>,
-}
-
-impl Table {
-    /// fixed size table
-    fn new(width: usize) -> Self {
-        if width > i16::MAX as usize {
-            panic!("Width cannot be larger than {}", i16::MAX);
-        }
-        let mut data = HashMap::new();
-        // insert starter values for column length measurment
-        for i in 0..width {
-            data.insert(Coord::meta(Position::Column(i as i16)), "".white());
-        }
-        Self {
-            title: "".white(),
-            columns: width,
-            rows: 0,
-            data,
-        }
-    }
-    fn push_header(&mut self, headers: Vec<ColoredString>) {
-        if headers.len() != self.columns {
-            panic!(
-                "wrong number of columns, must be {}, got {}",
-                self.columns,
-                headers.len()
-            );
-        }
-        for (i, item) in headers.into_iter().enumerate() {
-            if item.len() > self.col_width(i as i16) {
-                self.data
-                    .insert(Coord::meta(Position::Column(i as i16)), item.clone());
-            }
-            if self
-                .data
-                .insert(Coord::meta(Position::Header(i as i16)), item)
-                .is_some()
-            {
-                panic!("cannot overwrite existing header");
-            }
-        }
-    }
-    fn push_row(&mut self, row: Vec<ColoredString>) {
-        if row.len() != self.columns {
-            panic!(
-                "wrong number of columns, must be {}, got {}",
-                self.columns,
-                row.len()
-            );
-        }
-        for (i, item) in row.into_iter().enumerate() {
-            let column_key = Coord::meta(Position::Column(i as i16));
-            if item.len() > self.col_width(i as i16) {
-                self.data.insert(column_key, item.clone());
-            }
-            let key = Coord::item(i as i16, self.rows as i16);
-            if self.data.insert(key, item).is_some() {
-                panic!("cannot overwrite existing row");
-            }
-        }
-        self.rows += 1;
-    }
-    fn spacer(&self, width: &Coord, minus: &Coord) -> String {
-        " ".repeat(self.data.get(width).unwrap().len() - self.data.get(minus).unwrap().len())
-    }
-    fn max_width(&self) -> usize {
-        (0..self.columns).fold(0, |acc, n| acc + self.col_width(n as i16))
-    }
-    fn col_width(&self, i: i16) -> usize {
-        self.data
-            .get(&Coord::meta(Position::Column(i)))
-            .unwrap()
-            .len()
-    }
-    fn get(&self, key: &Coord) -> &ColoredString {
-        self.data.get(key).unwrap()
-    }
-    fn _combine(&self, c_string: ColoredString, spacer: &str) -> ColoredString {
-        if let Some(color) = c_string.fgcolor {
-            format!("{c_string}{spacer}").color(color)
-        } else {
-            format!("{c_string}{spacer}").white()
-        }
-    }
-
-    fn print(&self, border: bool, divider: bool) {
-        let table_width = self.max_width() + self.columns - 1;
-        let title = if self.title.len() > self.max_width() {
-            format!("{}...", self.title[..table_width - 5].to_string())
-                .color(self.title.fgcolor.unwrap())
-        } else {
-            self.title.clone()
-        };
-        if border {
-            print!("{}", TOP_LEFT.blue());
-            print!("{}", HORIZONTAL.repeat(self.col_width(0)).blue());
-            for col in 1..self.columns {
-                print!(
-                    "{}",
-                    HORIZONTAL.repeat(self.col_width(col as i16) + 1).blue()
-                );
-            }
-            print!("{}\n", TOP_RIGHT.blue());
-            print!("{}", VERTICAL.blue());
-        }
-        let pad_l = " ".repeat((table_width - title.len()) / 2);
-        let pad_r = " ".repeat(table_width - title.len() - (table_width - title.len()) / 2);
-        print!("{}{}{}", pad_l, title, pad_r);
-
-        if border {
-            print!("{}\n", VERTICAL.blue());
-            print!("{}", LEFT_T.blue());
-            print!("{}", HORIZONTAL.repeat(self.col_width(0)).blue());
-            for col in 1..self.columns {
-                print!(
-                    "{}{}",
-                    TOP_T.blue(),
-                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
-                );
-            }
-            print!("{}\n", RIGHT_T.blue());
-            print!("{}", VERTICAL.blue());
-        } else {
-            print!("\n")
-        }
-        print!(
-            "{}",
-            self.get(&Coord::meta(Position::Header(0)))
-        );
-        print!(
-            "{}",
-            self.spacer(
-                &Coord::meta(Position::Column(0)),
-                &Coord::meta(Position::Header(0))
-            )
-        );
-        for col in 1..self.columns {
-            if divider {
-                print!("{}", VERTICAL.blue());
-            }
-            print!(
-                "{}",
-                self.get(&Coord::meta(Position::Header(col as i16)))
-            );
-            print!("{}", self.spacer(
-                &Coord::meta(Position::Column(col as i16)),
-                &Coord::meta(Position::Header(col as i16))
-            ));
-        }
-        if border {
-            print!("{}\n", VERTICAL.blue());
-            print!("{}", LEFT_T.blue());
-            print!("{}", HORIZONTAL.repeat(self.col_width(0)).blue());
-            for col in 1..self.columns {
-                print!(
-                    "{}{}",
-                    CROSS.blue(),
-                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
-                );
-            }
-            print!("{}\n", RIGHT_T.blue());
-        } else {
-            print!("\n")
-        }
-        for row in 0..self.rows {
-            if border {
-                print!("{}", VERTICAL.blue());
-            }
-            print!("{}", self.get(&Coord::item(row as i16, 0)));
-            print!("{}", self.spacer(
-                &Coord::meta(Position::Column(0)),
-                &Coord::item(row as i16, 0)
-            ));
-            for col in 1..self.columns {
-                if divider {
-                    print!("{}", VERTICAL.blue());
-                }
-                print!("{}", self.get(&Coord::item(col as i16, row as i16)));
-                print!("{}", self.spacer(
-                    &Coord::meta(Position::Column(col as i16)),
-                    &Coord::item(col as i16, row as i16)
-                ));
-            }
-            if border {
-                print!("{}", VERTICAL.blue());
-            }
-            print!("\n");
-        }
-        if border {
-            print!("{}", BOTTOM_LEFT.blue());
-            print!("{}", HORIZONTAL.repeat(self.col_width(0)).blue());
-            for col in 1..self.columns {
-                print!(
-                    "{}{}",
-                    BOTTOM_T.blue(),
-                    HORIZONTAL.repeat(self.col_width(col as i16)).blue()
-                );
-            }
-            print!("{}", BOTTOM_RIGHT.blue());
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Table;
-    use colored::Colorize;
-    #[test]
-    fn make_a_table() {
-        let mut table = Table::new(4);
-        table.push_header(vec![
-            "my".white(),
-            "cool".white(),
-            "header".white(),
-            "wow".white(),
-        ]);
-        table.push_row(vec!["a".white(), "b".white(), "c".white(), "d".white()]);
-        assert_eq!(15, table.max_width());
-        assert_eq!(6, table.col_width(2));
-    }
 }
