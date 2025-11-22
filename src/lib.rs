@@ -32,9 +32,11 @@ use Method::*;
 mod results;
 
 pub use results::*;
+mod table;
+mod tests;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum AlixtError {
     #[error("Failed to read file")]
     Io(#[from] std::io::Error),
 
@@ -52,6 +54,9 @@ pub enum Error {
 
     #[error("Missing port")]
     MissingPort,
+
+    #[error("Bad input for table")]
+    TableInputError(String),
 }
 
 
@@ -94,7 +99,7 @@ pub fn request<W: Write>(
     port: &String,
     target: &String,
     body: &Option<String>,
-) -> Result<Response, Error> {
+) -> Result<Response, AlixtError> {
     let address = format!("http://{}:{}{}", url, port, target,);
 
     let client = blocking::Client::new();
@@ -124,7 +129,7 @@ pub fn request<W: Write>(
 
     Ok(response)
 }
-pub fn parse_file<W: Write>(writer: &mut W, file: String) -> Result<AllRuns, Error> {
+pub fn parse_file<W: Write>(writer: &mut W, file: String) -> Result<AllRuns, AlixtError> {
     let content = std::fs::read_to_string(&file)?;
     let config: Config = toml::from_str(&content)?;
 
@@ -150,7 +155,7 @@ pub fn execute_run<W: Write>(
     writer: &mut W,
     run: &Run,
     all_run_data: &mut AllRuns,
-) -> Result<(), Error> {
+) -> Result<(), AlixtError> {
     writeln!(
         writer,
         "\n\n----Run {} starting with {} requests----",
@@ -194,7 +199,7 @@ pub fn execute_run<W: Write>(
         } else if let Some(found) = &run.url {
             url = found.to_string();
         } else {
-            return Err(Error::MissingUrl);
+            return Err(AlixtError::MissingUrl);
         }
 
         if let Some(found) = req.port {
@@ -202,7 +207,7 @@ pub fn execute_run<W: Write>(
         } else if let Some(found) = run.port {
             port = format!("{found}");
         } else {
-            return Err(Error::MissingPort);
+            return Err(AlixtError::MissingPort);
         }
 
         if let Some(found) = &req.target {

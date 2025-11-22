@@ -17,7 +17,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::Error;
+use crate::AlixtError;
 
 use colored::{ColoredString, Colorize};
 
@@ -65,7 +65,7 @@ impl RunData {
             breaking,
         });
     }
-    pub fn print<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
+    pub fn print<W: Write>(&self, writer: &mut W) -> Result<(), AlixtError> {
         writeln!(writer, "[API]: {} tests completed:", self.tests.len())?;
         for test in &self.tests {
             let grade = if test.passing {
@@ -100,7 +100,7 @@ impl AllRuns {
         self.all.push(test);
     }
 
-    pub fn display_results<W: Write>(&mut self, writer: &mut W) -> Result<(), Error> {
+    pub fn display_results<W: Write>(&mut self, writer: &mut W) -> Result<(), AlixtError> {
         let passing = self
             .all
             .iter()

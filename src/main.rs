@@ -20,7 +20,7 @@ use std::io::Write;
 
 use clap::Parser;
 
-use alixt::Error as ApiError;
+use alixt::AlixtError as ApiError;
 use alixt::{Args, parse_file, request, template};
 
 fn main() {

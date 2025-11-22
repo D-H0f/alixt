@@ -95,7 +95,7 @@ port = 7878
 # ...
 "#;
 
-pub fn generate() -> Result<(), super::Error> {
+pub fn generate() -> Result<(), super::AlixtError> {
     std::fs::write("test_request.toml", TEMPLATE_TOML)?;
     println!("Template file created: 'test_request.toml'");
     Ok(())
