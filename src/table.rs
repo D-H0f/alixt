@@ -206,21 +206,16 @@ impl<const N: usize> Table<N> {
 
         if let Some(title) = self.get_title() {
             write!(w, "{}", VERTICAL.blue())?;
+            // if title is longer than table width, truncate to be 5 chars shorter
+            // than the table, to account for the border chars and the '...'
             if title.len() > table_width - 2 {
-                let pad_l = self.padding(table_width - self.content_width() / 2);
-                let pad_r = self.padding(
-                    table_width - self.content_width() - (table_width - self.content_width() / 2),
-                );
-
                 writeln!(
                     w,
-                    "{}{}...{}{}",
-                    pad_l,
-                    self.title[..table_width - 5]
+                    "{}...{}",
+                    self.title[..table_width - 3]
                         .to_string()
                         .color(self.title.fgcolor().unwrap()),
-                    pad_r,
-                    HORIZONTAL.blue(),
+                    VERTICAL.blue(),
                 )?;
             } else {
                 let pad_l = self.padding((table_width - title.len()) / 2);
