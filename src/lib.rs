@@ -1,3 +1,20 @@
+// This file is part of alixt.
+// Copyright (C) 2025 Devon Harley Offutt
+//
+// alixt is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -15,9 +32,11 @@ use Method::*;
 mod results;
 
 pub use results::*;
+mod table;
+mod tests;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum AlixtError {
     #[error("Failed to read file")]
     Io(#[from] std::io::Error),
 
@@ -35,6 +54,9 @@ pub enum Error {
 
     #[error("Missing port")]
     MissingPort,
+
+    #[error("Bad input for table")]
+    TableInputError(String),
 }
 
 
@@ -77,7 +99,7 @@ pub fn request<W: Write>(
     port: &String,
     target: &String,
     body: &Option<String>,
-) -> Result<Response, Error> {
+) -> Result<Response, AlixtError> {
     let address = format!("http://{}:{}{}", url, port, target,);
 
     let client = blocking::Client::new();
@@ -107,7 +129,7 @@ pub fn request<W: Write>(
 
     Ok(response)
 }
-pub fn parse_file<W: Write>(writer: &mut W, file: String) -> Result<AllRuns, Error> {
+pub fn parse_file<W: Write>(writer: &mut W, file: String) -> Result<AllRuns, AlixtError> {
     let content = std::fs::read_to_string(&file)?;
     let config: Config = toml::from_str(&content)?;
 
@@ -133,7 +155,7 @@ pub fn execute_run<W: Write>(
     writer: &mut W,
     run: &Run,
     all_run_data: &mut AllRuns,
-) -> Result<(), Error> {
+) -> Result<(), AlixtError> {
     writeln!(
         writer,
         "\n\n----Run {} starting with {} requests----",
@@ -177,7 +199,7 @@ pub fn execute_run<W: Write>(
         } else if let Some(found) = &run.url {
             url = found.to_string();
         } else {
-            return Err(Error::MissingUrl);
+            return Err(AlixtError::MissingUrl);
         }
 
         if let Some(found) = req.port {
@@ -185,7 +207,7 @@ pub fn execute_run<W: Write>(
         } else if let Some(found) = run.port {
             port = format!("{found}");
         } else {
-            return Err(Error::MissingPort);
+            return Err(AlixtError::MissingPort);
         }
 
         if let Some(found) = &req.target {
