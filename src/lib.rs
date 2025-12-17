@@ -166,6 +166,8 @@ pub fn execute_run<W: Write>(
 
     let mut current_run = RunData::new(run.name.clone());
 
+    let mut run_variables: HashMap<String, String> = HashMap::new();
+
     for req in &run.request {
         let mut passed = true;
         writeln!(writer, "\n-- Running Test: {} --", req.name)?;
@@ -221,6 +223,14 @@ pub fn execute_run<W: Write>(
         } else {
             body = run.body.clone();
         }
+        if let Some(found) = headers.as_mut() {
+            for (_, value) in found.iter_mut() {
+                for (identifier, data) in run_variables.iter() {
+                    let identifier = format!("{{{{{identifier}}}}}");
+                    *value = value.replace(&identifier, data);
+                }
+            }
+        }
 
         #[allow(unused)]
         let mut status_code: u16 = 404;
@@ -229,6 +239,30 @@ pub fn execute_run<W: Write>(
                 let status = response.status();
                 status_code = status.as_u16();
                 let body_text = response.text()?;
+
+                if let Some(capture) = &req.capture && !body_text.is_empty() {
+                    match serde_json::from_str::<Value>(&body_text) {
+                        Ok(json_body) => {
+                            for (var_name, json_path) in capture {
+                                let captured_val = if json_path.starts_with('/') {
+                                    json_body.pointer(json_path)
+                                } else {
+                                    json_body.get(json_path)
+                                };
+
+                                if let Some(val) = captured_val {
+                                    let val_str = match val {
+                                        Value::String(s) => s.clone(),
+                                        v => v.to_string(),
+                                    };
+                                    writeln!(writer, "[API]: Captured '{}' = '{}'", var_name, val_str)?;
+                                    run_variables.insert(var_name.clone(), val_str);
+                                }
+                            }
+                        },
+                        Err(e) => writeln!(writer, "[WARN]: Cannot capture variables, response body is not valid JSON: {e:#?}")?,
+                    }
+                }
 
                 writeln!(
                     writer,

@@ -57,6 +57,7 @@ pub struct Request {
     pub body: Option<String>,
 
     pub headers: Option<HashMap<String, String>>,
+    pub capture: Option<HashMap<String, String>>,
     pub assert: Assert,
 }
 
