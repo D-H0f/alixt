@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+use crate::models::error::AlixtError;
+
 
 const TEMPLATE_TOML: &str = r#"
 # This is an example for the API tester.
@@ -95,7 +97,7 @@ port = 7878
 # ...
 "#;
 
-pub fn generate() -> Result<(), super::AlixtError> {
+pub fn generate() -> Result<(), AlixtError> {
     std::fs::write("test_request.toml", TEMPLATE_TOML)?;
     println!("Template file created: 'test_request.toml'");
     Ok(())

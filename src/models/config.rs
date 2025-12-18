@@ -15,7 +15,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use clap::ValueEnum;
 
@@ -25,6 +25,22 @@ pub enum Method {
     Post,
     Put,
     Delete,
+    Patch,
+}
+
+#[derive(ValueEnum, Clone, Debug, Deserialize)]
+pub enum Scheme {
+    Http,
+    Https,
+}
+
+impl std::fmt::Display for Scheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scheme::Http => write!(f, "http"),
+            Scheme::Https => write!(f, "https"),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -37,28 +53,30 @@ pub struct Config {
 pub struct Run {
     pub name: String,
     // These fields are the defaults for all requests in the run
+    pub headers: Option<HashMap<String, String>>,
     pub method: Option<Method>,
-    pub url: Option<String>,
+    pub scheme: Option<Scheme>,
+    pub host: Option<String>,
     pub port: Option<u16>,
-    pub target: Option<String>,
+    pub path: Option<String>,
     pub body: Option<String>,
 
     pub request: Vec<Request>,
-    pub headers: Option<HashMap<String, String>>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Request {
     pub name: String,
+    pub headers: Option<HashMap<String, String>>,
     pub method: Option<Method>,
-    pub url: Option<String>,
+    pub scheme: Option<Scheme>,
+    pub host: Option<String>,
     pub port: Option<u16>,
-    pub target: Option<String>,
+    pub path: Option<String>,
     pub body: Option<String>,
 
-    pub headers: Option<HashMap<String, String>>,
     pub capture: Option<HashMap<String, String>>,
-    pub assert: Assert,
+    pub assert: Option<Assert>,
 }
 
 #[derive(Deserialize, Debug)]
