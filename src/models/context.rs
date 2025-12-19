@@ -1,25 +1,37 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use regex::Regex;
 
-pub struct TestState {
-    pub run_variables: HashMap<String, String>,
+pub struct Global {
     pub env_variables: HashMap<String, String>,
+}
+
+impl Global {
+    pub fn new() -> Self {
+        Self {
+            env_variables: HashMap::new(),
+        }
+    }
+}
+
+pub struct RunState {
+    pub run_variables: HashMap<String, String>,
+    pub global: Arc<Global>,
 
     matcher: Regex,
 }
 
-impl TestState {
-    pub fn new() -> Self {
+impl RunState {
+    pub fn new(global: Arc<Global>) -> Self {
         Self {
             run_variables: HashMap::new(),
-            env_variables: HashMap::new(),
+            global,
             matcher: Regex::new(r"\{\{\s*(.*?)\s*\}\}").expect("Failed to compile regex"),
         }
     }
     fn resolve(&self, key: &str) -> Option<&str> {
         if let Some(identifier) = key.strip_prefix("env.") {
-            return self.env_variables.get(identifier).map(|v| v.as_str());
+            return self.global.env_variables.get(identifier).map(|v| v.as_str());
         }
 
         if let Some(identifier) = key.strip_prefix("run.") {
@@ -28,7 +40,7 @@ impl TestState {
 
         if let Some(value) = self.run_variables.get(key) {
             Some(value.as_str())
-        } else if let Some(value) = self.env_variables.get(key) {
+        } else if let Some(value) = self.global.env_variables.get(key) {
             Some(value.as_str())
         } else {
             None
@@ -52,11 +64,13 @@ mod tests {
 
     #[test]
     fn test_substitution() {
-        let mut state = TestState::new();
-
-        state
+        let mut global = Global::new();
+        global
             .env_variables
             .insert("one".to_string(), "Hello,_".to_string());
+
+        let mut state = RunState::new(Arc::new(global));
+
 
         state
             .run_variables

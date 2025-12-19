@@ -5,17 +5,32 @@ pub mod reporting;
 pub mod utils;
 
 
-use crate::models::{cli::Output, error::AlixtError, test_data::TestData};
+use std::sync::Arc;
 
-pub async fn run_test(args: models::cli::Args) -> Result<TestData, AlixtError> {
+use reqwest::Client;
+
+use crate::{models::{cli::Output, context::Global, error::AlixtError}, reporting::logging::standard_out};
+
+pub async fn run(args: models::cli::Args) -> Result<(), AlixtError> {
     let content = std::fs::read_to_string(args.file)?;
     let plan = preprocess::parse(content)?;
 
-    let results = execute::test_endpoints::run_test(plan).await?;
+    #[allow(unused)]
+    let mut global = Global::new();
+    // add logic to grab env and global variables after it is created, but before it is frozen in
+    // Arc
+
+    let global = Arc::new(global);
+    let client = Client::new();
+
+    let outcome = execute::http::execute_test(&client, plan, global).await?;
     
     match args.output {
-        Output::Text => todo!(),
-        Output::Table => todo!(),
-        Output::Json => todo!(),
+        Output::Text => {
+            standard_out(outcome);
+        },
+        Output::Table => {},
+        Output::Json => {},
     }
+    Ok(())
 }

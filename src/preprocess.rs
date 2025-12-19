@@ -16,7 +16,7 @@ pub fn parse(content: String) -> Result<TestPlan, AlixtError> {
 }
 
 fn build_run(run: Run) -> Result<RunPlan, AlixtError> {
-    let mut run_plan = RunPlan::new();
+    let mut run_plan = RunPlan::new(run.name);
 
     for mut request in run.request {
         // inheritance checks
@@ -71,9 +71,10 @@ fn build_request(request: Request) -> Result<ExecuteRequest, AlixtError> {
     let mut url = format!(
         "{}://{}",
         request.scheme.unwrap_or_else(|| Scheme::Http),
-        request.host.ok_or_else(|| AlixtError::Config(
-            format!("Internal Error: Request {} missing host, got past checks", request.name)
-        ))?
+        request.host.ok_or_else(|| AlixtError::Config(format!(
+            "Internal Error: Request {} missing host, got past checks",
+            request.name
+        )))?
     );
     if let Some(port) = request.port {
         url = format!("{}:{}", url, port);
@@ -84,9 +85,12 @@ fn build_request(request: Request) -> Result<ExecuteRequest, AlixtError> {
         url = format!("{}/", url)
     }
 
-    let method = match request.method.ok_or_else(|| AlixtError::Config(
-        format!("Internal Error: Request {} missing method, got past checks", request.name)
-    ))? {
+    let method = match request.method.ok_or_else(|| {
+        AlixtError::Config(format!(
+            "Internal Error: Request {} missing method, got past checks",
+            request.name
+        ))
+    })? {
         Method::Get => reqwest::Method::GET,
         Method::Put => reqwest::Method::PUT,
         Method::Post => reqwest::Method::POST,

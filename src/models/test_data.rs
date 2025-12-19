@@ -4,11 +4,30 @@ pub struct TestData {
     pub run_data: Vec<RunData>,
 }
 
+impl TestData {
+    pub fn new() -> Self {
+        Self {
+            run_data: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct RunData {
     pub name: String,
     pub outcomes: Vec<RequestOutcome>,
 }
 
+impl RunData {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            outcomes: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct RequestOutcome {
     pub name: String,
     pub method: String,

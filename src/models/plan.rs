@@ -18,12 +18,14 @@ impl TestPlan {
 }
 
 pub struct RunPlan {
+    pub name: String,
     pub requests: Vec<ExecuteRequest>,
 }
 
 impl RunPlan {
-    pub fn new() -> Self {
+    pub fn new(name: String) -> Self {
         Self {
+            name,
             requests: Vec::new()
         }
     }

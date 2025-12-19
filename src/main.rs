@@ -14,7 +14,7 @@ async fn main() {
         exit(0);
     }
     
-    match alixt::run_test(args).await {
+    match alixt::run(args).await {
         Ok(_) => exit(0),
         Err(e) => {
             eprintln!("Error: {e}");
