@@ -40,4 +40,7 @@ pub enum AlixtError {
 
     #[error("Internal Application error: {0}")]
     InternalError(String),
+
+    #[error("Table Error: {0}")]
+    TableInputError(String),
 }
