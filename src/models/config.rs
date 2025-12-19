@@ -19,18 +19,27 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use clap::ValueEnum;
 
-#[derive(ValueEnum, Clone, Debug, Deserialize)]
+#[derive(ValueEnum, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Method {
+    #[serde(alias = "Get", alias = "GET")]
     Get,
+    #[serde(alias = "Post", alias = "POST")]
     Post,
+    #[serde(alias = "Put", alias = "PUT")]
     Put,
+    #[serde(alias = "Delete", alias = "DELETE")]
     Delete,
+    #[serde(alias = "Patch", alias = "PATCH")]
     Patch,
 }
 
-#[derive(ValueEnum, Clone, Debug, Deserialize)]
+#[derive(ValueEnum, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Scheme {
+    #[serde(alias = "Http", alias = "HTTP")]
     Http,
+    #[serde(alias = "Https", alias = "HTTPS")]
     Https,
 }
 
@@ -43,13 +52,13 @@ impl std::fmt::Display for Scheme {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub run: Vec<Run>,
 }
 
 // holds multiple requests, contents are blocking
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Run {
     pub name: String,
     // These fields are the defaults for all requests in the run
@@ -64,7 +73,7 @@ pub struct Run {
     pub request: Vec<Request>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Request {
     pub name: String,
     pub headers: Option<HashMap<String, String>>,
@@ -79,7 +88,7 @@ pub struct Request {
     pub assert: Option<Assert>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Assert {
     pub status: u16,
     pub breaking: bool,
