@@ -214,7 +214,7 @@ impl<const N: usize> Table<N> {
                     "{}...{}",
                     self.title[..table_width - 3]
                         .to_string()
-                        .color(self.title.fgcolor().unwrap()),
+                        .color(self.title.fgcolor.unwrap()),
                     VERTICAL.blue(),
                 )?;
             } else {
