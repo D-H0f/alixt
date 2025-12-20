@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/D-H0f/alixt"
 description = "A command line http API testing utility with TOML configuration"
-keywords = ["cli", "http", "testing", "automation", "api", "curl", "integration-testing", "json"]
+keywords = ["cli", "http", "testing", "automation", "api"]
 categories = ["command-line-utilities", "development-tools::testing", "web-programming::http-client"]
 
 
