@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use serde::{Serialize, Serializer};
 
-#[derive(Debug, Serialize)]
+#[derive(Default, Debug, Serialize)]
 pub struct TestData {
     #[serde(rename = "runs")]
     pub run_data: Vec<RunData>,

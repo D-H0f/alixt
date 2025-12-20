@@ -68,7 +68,7 @@ fn build_run(run: Run) -> Result<RunPlan, AlixtError> {
             request.host = run.host.clone();
         }
         if request.port.is_none() {
-            request.port = run.port.clone();
+            request.port = run.port;
         }
         if request.path.is_none() {
             // if neither the request nor run specify a path, it defaults to "/"
@@ -87,7 +87,7 @@ fn build_run(run: Run) -> Result<RunPlan, AlixtError> {
 fn build_request(request: Request) -> Result<ExecuteRequest, AlixtError> {
     let mut url = format!(
         "{}://{}",
-        request.scheme.unwrap_or_else(|| Scheme::Http),
+        request.scheme.unwrap_or(Scheme::Http),
         request.host.ok_or_else(|| AlixtError::Config(format!(
             "Internal Error: Request {} missing host, got past checks",
             request.name

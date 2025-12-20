@@ -15,6 +15,7 @@ dependencies = [
 name = "alixt"
 version = "0.7.1"
 dependencies = [
+ "alixt-table",
  "clap",
  "colored",
  "regex",
@@ -24,6 +25,16 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+]
+
+[[package]]
+name = "alixt-table"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22310837fd46fb977caa99bed6dac88b0322f62fbad87b84a8adceeedd8deea9"
+dependencies = [
+ "colored",
+ "thiserror",
 ]
 
 [[package]]

@@ -42,5 +42,5 @@ pub enum AlixtError {
     InternalError(String),
 
     #[error("Table Error: {0}")]
-    TableInputError(String),
+    TabletError(#[from] alixt_table::TableError),
 }

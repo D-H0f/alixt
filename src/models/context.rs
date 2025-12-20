@@ -19,6 +19,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use regex::Regex;
 
+#[derive(Default, Debug)]
 pub struct Global {
     pub env_variables: HashMap<String, String>,
 }

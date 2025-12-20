@@ -1,10 +1,12 @@
 [package]
 name = "alixt"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 license = "GPL-3.0-or-later"
-description = "A command line http API testing utility with TOML configuration"
 repository = "https://github.com/D-H0f/alixt"
+description = "A command line http API testing utility with TOML configuration"
+keywords = ["cli", "http", "testing", "automation", "api", "curl", "integration-testing", "json"]
+categories = ["command-line-utilities", "development-tools::testing", "web-programming::http-client"]
 
 
 [dependencies]
@@ -17,3 +19,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 thiserror = "2.0.17"
 toml = "0.9.9"
+alixt-table = "0.1.1"

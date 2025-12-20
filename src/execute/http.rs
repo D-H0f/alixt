@@ -130,7 +130,7 @@ async fn execute_request(client: &Client, request: ExecuteRequest, state: &mut R
             outcome.passing = false;
         } else if let Some(assert_body) = assert.body {
             if let Some(outcome_json) = json {
-                if let Some(assert_json) = serde_json::from_str::<Value>(&assert_body).ok() {
+                if let Ok(assert_json) = serde_json::from_str::<Value>(&assert_body) {
                     if assert_json != outcome_json {
                         // assert_body and outcome_body are both valid JSON, but do not match
                         outcome.passing = false;

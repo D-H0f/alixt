@@ -22,6 +22,7 @@ use reqwest::Method;
 use crate::models::config::Assert;
 
 
+#[derive(Default)]
 pub struct TestPlan {
     pub runs: Vec<RunPlan>,
 }

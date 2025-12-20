@@ -35,14 +35,14 @@ pub fn generate_text<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Re
                 req.duration.as_secs_f64(),
             )?;
             if let Some(body) = req.response_body {
-                let body = if let Some(json) = serde_json::from_str::<Value>(&body).ok() {
-                    format!("{}", serde_json::to_string_pretty(&json).unwrap_or(body.clone()))
+                let body = if let Ok(json) = serde_json::from_str::<Value>(&body) {
+                    serde_json::to_string_pretty(&json).unwrap_or(body.clone())
                 } else {
                     body
                 };
                 writeln!(writer, "Body = ```\n{}```", body)?;
             } else {
-                writeln!(writer, "")?;
+                writeln!(writer)?;
             }
         }
     }
