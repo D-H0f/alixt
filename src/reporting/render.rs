@@ -175,7 +175,8 @@ pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> R
     Ok(())
 }
 
-#[allow(unused)]
 pub fn generate_json<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Result<(), AlixtError> {
+    serde_json::to_writer_pretty(&mut *writer, &outcome)?;
+    writeln!(writer)?;
     Ok(())
 }

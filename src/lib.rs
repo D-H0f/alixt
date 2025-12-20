@@ -27,7 +27,7 @@ use reqwest::Client;
 
 use crate::{
     models::{cli::OutputFormat, context::Global, error::AlixtError},
-    reporting::render::{generate_table, generate_text},
+    reporting::render::{generate_json, generate_table, generate_text},
 };
 
 pub async fn run<W: std::io::Write>(
@@ -56,7 +56,9 @@ pub async fn run<W: std::io::Write>(
         OutputFormat::Table => {
             generate_table(writer, outcome)?;
         }
-        OutputFormat::Json => {}
+        OutputFormat::Json => {
+            generate_json(writer, outcome)?;
+        }
     }
     Ok(())
 }

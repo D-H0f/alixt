@@ -17,7 +17,11 @@
 
 use std::time::Duration;
 
+use serde::{Serialize, Serializer};
+
+#[derive(Debug, Serialize)]
 pub struct TestData {
+    #[serde(rename = "runs")]
     pub run_data: Vec<RunData>,
 }
 
@@ -29,9 +33,10 @@ impl TestData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct RunData {
     pub name: String,
+    #[serde(rename = "requests")]
     pub outcomes: Vec<RequestOutcome>,
 }
 
@@ -44,7 +49,7 @@ impl RunData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct RequestOutcome {
     pub name: String,
     pub method: String,
@@ -55,5 +60,11 @@ pub struct RequestOutcome {
 
     pub status: Option<u16>,
     pub response_body: Option<String>,
+    #[serde(serialize_with = "serialize_duration_as_seconds", rename = "duration_seconds")]
     pub duration: Duration,
+}
+
+
+fn serialize_duration_as_seconds<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_f64(duration.as_secs_f64())
 }
