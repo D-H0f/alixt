@@ -14,15 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 use std::{str::FromStr, sync::Arc, time::Instant};
 
-use reqwest::{Client, header::{HeaderMap, HeaderName, HeaderValue}};
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
 use serde_json::Value;
 
-use crate::models::{context::{Global, RunState}, error::AlixtError, plan::{ExecuteRequest, RunPlan, TestPlan}, test_data::{RequestOutcome, RunData, TestData}};
+use crate::models::{
+    context::{Global, RunState},
+    error::AlixtError,
+    plan::{ExecuteRequest, RunPlan, TestPlan},
+    test_data::{RequestOutcome, RunData, TestData},
+};
 
-pub async fn execute_test(client: &Client, plan: TestPlan, global: Arc<Global>) -> Result<TestData, AlixtError> {
+pub async fn execute_test(
+    client: &Client,
+    plan: TestPlan,
+    global: Arc<Global>,
+) -> Result<TestData, AlixtError> {
     let mut test_outcome = TestData::new();
     for run in plan.runs {
         match execute_run(client, run, RunState::new(global.clone())).await {
@@ -33,20 +44,28 @@ pub async fn execute_test(client: &Client, plan: TestPlan, global: Arc<Global>) 
     Ok(test_outcome)
 }
 
-async fn execute_run(client: &Client, run: RunPlan, mut state: RunState) -> Result<RunData, AlixtError> {
+async fn execute_run(
+    client: &Client,
+    run: RunPlan,
+    mut state: RunState,
+) -> Result<RunData, AlixtError> {
     let mut run_outcome = RunData::new(run.name.clone());
     for request in run.requests {
         let outcome = execute_request(client, request, &mut state).await?;
         if !outcome.passing && outcome.breaking {
             run_outcome.outcomes.push(outcome);
-            return Ok(run_outcome)
+            return Ok(run_outcome);
         }
         run_outcome.outcomes.push(outcome);
     }
     Ok(run_outcome)
 }
 
-async fn execute_request(client: &Client, request: ExecuteRequest, state: &mut RunState) -> Result<RequestOutcome, AlixtError> {
+async fn execute_request(
+    client: &Client,
+    request: ExecuteRequest,
+    state: &mut RunState,
+) -> Result<RequestOutcome, AlixtError> {
     let url = state.substitute_values_in_text(&request.url);
     let mut final_headers = HeaderMap::new();
     if let Some(headers) = &request.headers {
@@ -57,14 +76,18 @@ async fn execute_request(client: &Client, request: ExecuteRequest, state: &mut R
                 AlixtError::Config(format!("Invalid Header Name '{}', {:#?}", key, e))
             })?;
             let header_value = HeaderValue::from_str(value.as_str()).map_err(|e| {
-                AlixtError::Config(format!("Invalid header value for '{}: {}', {:#?}", key, value, e))
+                AlixtError::Config(format!(
+                    "Invalid header value for '{}: {}', {:#?}",
+                    key, value, e
+                ))
             })?;
 
             final_headers.insert(header_name, header_value);
         }
     }
 
-    let mut builder = client.request(request.method.clone(), url.clone())
+    let mut builder = client
+        .request(request.method.clone(), url.clone())
         .headers(final_headers);
 
     if let Some(text) = request.body {
@@ -84,8 +107,10 @@ async fn execute_request(client: &Client, request: ExecuteRequest, state: &mut R
     } else {
         None
     };
-    
-    if let Some(capture) = request.capture && let Some(json) = &json {
+
+    if let Some(capture) = request.capture
+        && let Some(json) = &json
+    {
         for (variable, pattern) in capture {
             let value = if pattern.starts_with('/') {
                 json.pointer(&pattern)
@@ -145,16 +170,77 @@ async fn execute_request(client: &Client, request: ExecuteRequest, state: &mut R
                 outcome.passing = *outcome_body == assert_body;
             }
         }
-
     }
     Ok(outcome)
 }
-
 
 // in place as a reminder to eventually add an initial capture run, and global_variables inside
 // Global. execute_capture_run() will almost certainly be needed, but execute_capture_request may
 // be redundant, wont know until we get there.
 #[allow(unused)]
 pub async fn execute_capture_run() {}
-#[allow(unused)]
-pub async fn execute_capture_request() {}
+
+pub async fn execute_capture_request(
+    client: &Client,
+    request: &ExecuteRequest,
+    global: &mut Global,
+) -> Result<(), AlixtError> {
+    let url = global.substitute_values_in_text(&request.url);
+    let mut final_headers = HeaderMap::new();
+    if let Some(headers) = &request.headers {
+        for (key, value) in headers {
+            let value = global.substitute_values_in_text(value);
+
+            let header_name = HeaderName::from_str(key).map_err(|e| {
+                AlixtError::Config(format!("Invalid Header Name '{}', {:#?}", key, e))
+            })?;
+            let header_value = HeaderValue::from_str(value.as_str()).map_err(|e| {
+                AlixtError::Config(format!(
+                    "Invalid header value for '{}: {}', {:#?}",
+                    key, value, e
+                ))
+            })?;
+
+            final_headers.insert(header_name, header_value);
+        }
+    }
+
+    let mut builder = client
+        .request(request.method.clone(), url.clone())
+        .headers(final_headers);
+
+    if let Some(text) = &request.body {
+        let body = global.substitute_values_in_text(text.as_str());
+        builder = builder.body(body);
+    }
+
+    let response = builder.send().await?;
+
+    let Some(capture) = request.capture.as_ref() else {
+        return Ok(());
+    };
+
+    // if there is no capture, it doesnt matter what the response body is, but if there is a
+    // capture block, the response MUST be valid JSON by this point in order to extract values
+    let response = response.json::<Value>().await?;
+
+    for (variable, pattern) in capture {
+        let value = if pattern.starts_with('/') {
+            response.pointer(pattern)
+        } else {
+            response.get(pattern)
+        };
+
+        // unlike with regular requests, capture variables must be resolved in the response body
+        let Some(value) = value else {
+            return Err(AlixtError::Config(format!("pattern '{}' not found in response body for request '{}'", pattern, request.name)));
+        };
+
+        let value_string = match value {
+            Value::String(s) => s.clone(),
+            v => v.to_string(),
+        };
+        global.variables.insert(variable.to_string(), value_string);
+    }
+    Ok(())
+}

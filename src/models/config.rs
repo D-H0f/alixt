@@ -62,7 +62,7 @@ pub struct Config {
 pub struct Capture {
     pub env_file: Option<std::path::PathBuf>,
     pub environment_variables: Option<HashMap<String, String>>,
-    pub request: Vec<CaptureRequest>,
+    pub request: Option<Vec<CaptureRequest>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

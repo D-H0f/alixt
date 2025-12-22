@@ -189,7 +189,7 @@ r#"{
         capture: Some(Capture {
             env_file: Some(PathBuf::from("./secrets.env")),
             environment_variables,
-            request: vec![
+            request: Some(vec![
                 CaptureRequest {
                     name: Some("Get initial login token".to_string()),
                     headers: Some(run_headers),
@@ -201,7 +201,7 @@ r#"{
                     body: Some(login_body.to_string()),
                     capture: Some(login_capture),
                 }
-            ],
+            ]),
         }),
         run: vec![login_run],
     };

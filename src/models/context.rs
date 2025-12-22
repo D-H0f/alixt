@@ -22,7 +22,7 @@ use regex::Regex;
 #[derive(Debug)]
 pub struct Global {
     pub env_variables: HashMap<String, String>,
-    pub global_variables: HashMap<String, String>,
+    pub variables: HashMap<String, String>,
     matcher: Regex,
 }
 
@@ -30,8 +30,30 @@ impl Global {
     pub fn new() -> Self {
         Self {
             env_variables: HashMap::new(),
-            global_variables: HashMap::new(),
+            variables: HashMap::new(),
             matcher: Regex::new(r"\{\{\s*(.*?)\s*\}\}").expect("Failed to compile regex"),
+        }
+    }
+    pub fn substitute_values_in_text(&self, input: &str) -> String {
+        self.matcher
+            .replace_all(input, |caps: &regex::Captures| {
+                let key = &caps[1].trim();
+
+                self.resolve(key).unwrap_or(&caps[0]).to_string()
+            })
+            .to_string()
+    }
+    pub fn resolve(&self, key: &str) -> Option<&str> {
+        if let Some(identifier) = key.strip_prefix("env.") {
+            self.env_variables.get(identifier).map(|v| v.as_str())
+        } else if let Some(identifier) = key.strip_prefix("global.") {
+            self.variables.get(identifier).map(|v| v.as_str())
+        } else if let Some(value) = self.variables.get(key) {
+            Some(value.as_str())
+        } else if let Some(value) = self.env_variables.get(key) {
+            Some(value.as_str())
+        } else {
+            None
         }
     }
 }
@@ -60,7 +82,7 @@ impl RunState {
         }
 
         if let Some(identifier) = key.strip_prefix("global.") {
-            return self.global.global_variables.get(identifier).map(|v| v.as_str());
+            return self.global.variables.get(identifier).map(|v| v.as_str());
         }
 
         if let Some(identifier) = key.strip_prefix("run.") {
@@ -68,6 +90,8 @@ impl RunState {
         }
 
         if let Some(value) = self.run_variables.get(key) {
+            Some(value.as_str())
+        } else if let Some(value) = self.global.variables.get(key) {
             Some(value.as_str())
         } else if let Some(value) = self.global.env_variables.get(key) {
             Some(value.as_str())
