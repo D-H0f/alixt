@@ -54,7 +54,29 @@ impl std::fmt::Display for Scheme {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
+    pub capture: Option<Capture>,
     pub run: Vec<Run>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Capture {
+    pub env_file: Option<std::path::PathBuf>,
+    pub environment_variables: Option<HashMap<String, String>>,
+    pub request: Vec<CaptureRequest>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "request")]
+pub struct CaptureRequest {
+    pub name: Option<String>,
+    pub headers: Option<HashMap<String, String>>,
+    pub method: Method,
+    pub scheme: Scheme,
+    pub host: String,
+    pub port: Option<u16>,
+    pub path: Option<String>,
+    pub body: Option<String>,
+    pub capture: Option<HashMap<String, String>>,
 }
 
 // holds multiple requests, contents are blocking

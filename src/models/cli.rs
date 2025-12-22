@@ -14,20 +14,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
 
-
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Generate a test_requests.toml template file to use
-    #[arg(long, conflicts_with = "file")]
+    #[arg(
+        long,
+        conflicts_with = "file",
+        conflicts_with = "generate_template_basic",
+        conflicts_with = "mode"
+    )]
     pub generate_template: bool,
 
+    #[arg(
+        long,
+        conflicts_with = "file",
+        conflicts_with = "generate_template",
+        conflicts_with = "mode",
+        hide = true
+    )]
+    pub generate_template_basic: bool,
+
     /// Run requests from a .toml file.
-    #[arg(short, long, required_unless_present = "generate_template")]
+    #[arg(
+        short,
+        long,
+        required_unless_present = "generate_template",
+        required_unless_present = "generate_template_basic"
+    )]
     pub file: Option<String>,
 
     /// The format of the output

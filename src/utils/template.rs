@@ -15,10 +15,96 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+use std::path::PathBuf;
 use std::{collections::HashMap, io::Write};
 
 use crate::models::config::*;
 use crate::models::error::AlixtError;
+
+const PRETTY_TEMPLATE: &str = r#"
+# --- Initial Capture Run ---
+[capture]
+  env_file = "./secrets.env"
+
+  [capture.environment_variables]
+    API_KEY = "SYS_API_KEY_V1"
+    DB_URL = "SYS_DATABASE_URL_V1"
+
+  [[capture.request]]
+    name = "Get initial login token"
+    method = "post"
+    scheme = "http"
+    host = "0.0.0.0"
+    port = 7878
+    path = "/login"
+    body = """
+{
+    "username": "my_username",
+    "password": "my_password"
+}
+"""
+
+  [capture.request.headers]
+    Content-Type = "application/json"
+
+  [capture.request.capture]
+    auth_token = "token"
+
+# --- Run Tests ---
+[[run]]
+  name = "Example Test Configuration"
+  method = "get"
+  scheme = "http"
+  host = "0.0.0.0"
+  port = 7878
+
+  [run.headers]
+    Content-Type = "application/json"
+
+  [[run.request]]
+    name = "Get Authentication Token"
+    method = "post"
+    path = "/login"
+    body = """
+{
+    "username": "my_username",
+    "password": "my_password"
+}
+"""
+
+  [run.request.capture]
+    auth_token = "token"
+
+  [[run.request]]
+    name = "Use Captured Auth Token"
+    method = "post"
+    scheme = "https"
+    path = "/accounts"
+    body = """
+{
+    "name": "Doug Walker",
+    "username": "digdug",
+    "password": "password123",
+    "email": "exapmle@example.com"
+}
+"""
+
+  [run.request.headers]
+    Authorization = "Bearer {{auth_token}}"
+    Content-Type = "application/json"
+
+  [run.request.assert]
+    status = 200
+    breaking = true
+    body = """
+{
+    "id": 2
+}
+"""
+"#;
+pub fn generate_pretty<W: Write>(writer: &mut W) -> std::io::Result<()> {
+    writeln!(writer, "{}", PRETTY_TEMPLATE)
+}
 
 
 pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
@@ -27,20 +113,18 @@ pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
     let mut login_capture = HashMap::new();
     login_capture.insert("auth_token".to_string(), "token".to_string());
 
-    let login_body = r#"
-{
+    let login_body = r#"{
     "username": "my_username",
     "password": "my_password"
 }
 "#;
-    let request_body = r#"
-{
+    let request_body = r#"{
     "name": "Doug Walker",
     "username": "digdug",
     "password": "password123",
-    "email": "exapmle@example.com",
+    "email": "exapmle@example.com"
 }
-    "#;
+"#;
 
     let mut request_headers = HashMap::new();
     request_headers.insert("Content-Type".to_string(), "application/json".to_string());
@@ -51,7 +135,7 @@ pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
 
     let login_run = Run {
         name: "Example Test Configuration".to_string(),
-        headers: Some(run_headers),
+        headers: Some(run_headers.clone()),
         method: Some(Method::Get),
         scheme: Some(Scheme::Http),
         host: Some("0.0.0.0".to_string()),
@@ -68,7 +152,7 @@ pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
                 port: None,
                 path: Some("/login".to_string()),
                 body: Some(login_body.to_string()),
-                capture: Some(login_capture),
+                capture: Some(login_capture.clone()),
                 assert: None,
             },
             Request {
@@ -85,8 +169,7 @@ pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
                     status: 200,
                     breaking: true,
                     body: Some(
-r#"
-{
+r#"{
     "id": 2
 }
 "#
@@ -97,7 +180,29 @@ r#"
         ],
     };
 
+    let mut environment_variables = HashMap::new();
+    environment_variables.insert("API_KEY".to_string(), "SYS_API_KEY_V1".to_string());
+    environment_variables.insert("DB_URL".to_string(), "SYS_DATABASE_URL_V1".to_string());
+    let environment_variables = Some(environment_variables);
+
     let config = Config {
+        capture: Some(Capture {
+            env_file: Some(PathBuf::from("./secrets.env")),
+            environment_variables,
+            request: vec![
+                CaptureRequest {
+                    name: Some("Get initial login token".to_string()),
+                    headers: Some(run_headers),
+                    method: Method::Post,
+                    scheme: Scheme::Http,
+                    host: "0.0.0.0".to_string(),
+                    port: Some(7878u16),
+                    path: Some("/login".to_string()),
+                    body: Some(login_body.to_string()),
+                    capture: Some(login_capture),
+                }
+            ],
+        }),
         run: vec![login_run],
     };
 

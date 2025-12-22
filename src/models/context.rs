@@ -19,24 +19,32 @@ use std::{collections::HashMap, sync::Arc};
 
 use regex::Regex;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Global {
     pub env_variables: HashMap<String, String>,
+    pub global_variables: HashMap<String, String>,
+    matcher: Regex,
 }
 
 impl Global {
     pub fn new() -> Self {
         Self {
             env_variables: HashMap::new(),
+            global_variables: HashMap::new(),
+            matcher: Regex::new(r"\{\{\s*(.*?)\s*\}\}").expect("Failed to compile regex"),
         }
+    }
+}
+
+impl Default for Global {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 pub struct RunState {
     pub run_variables: HashMap<String, String>,
     pub global: Arc<Global>,
-
-    matcher: Regex,
 }
 
 impl RunState {
@@ -44,12 +52,15 @@ impl RunState {
         Self {
             run_variables: HashMap::new(),
             global,
-            matcher: Regex::new(r"\{\{\s*(.*?)\s*\}\}").expect("Failed to compile regex"),
         }
     }
     fn resolve(&self, key: &str) -> Option<&str> {
         if let Some(identifier) = key.strip_prefix("env.") {
             return self.global.env_variables.get(identifier).map(|v| v.as_str());
+        }
+
+        if let Some(identifier) = key.strip_prefix("global.") {
+            return self.global.global_variables.get(identifier).map(|v| v.as_str());
         }
 
         if let Some(identifier) = key.strip_prefix("run.") {
@@ -66,7 +77,7 @@ impl RunState {
     }
 
     pub fn substitute_values_in_text(&self, input: &str) -> String {
-        self.matcher
+        self.global.matcher
             .replace_all(input, |caps: &regex::Captures| {
                 let key = &caps[1].trim();
 

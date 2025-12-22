@@ -37,6 +37,15 @@ async fn main() {
     };
 
     if args.generate_template {
+        if let Err(e) = utils::template::generate_pretty(&mut writer) {
+            eprintln!("Error generating template file: {e:#?}");
+            exit(1)
+        } else {
+            exit(0)
+        }
+    }
+
+    if args.generate_template_basic {
         if let Err(e) = utils::template::generate(&mut writer) {
             eprintln!("Error generating template file: {e:#?}");
             exit(1)
