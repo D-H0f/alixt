@@ -27,7 +27,8 @@ use crate::{
     models::{
         cli::OutputFormat, config::Config, context::Global, error::AlixtError, plan::TestPlan,
     },
-    reporting::render::{generate_json, generate_table, generate_text}, utils::env,
+    reporting::render::{generate_json, generate_table, generate_text},
+    utils::env,
 };
 
 pub async fn run<W: std::io::Write>(
@@ -50,7 +51,9 @@ pub async fn run<W: std::io::Write>(
 
     #[allow(unused)]
     let mut global = Global::new();
-    let client = Client::new();
+    let client = Client::builder()
+        .danger_accept_invalid_certs(args.insecure)
+        .build()?;
 
     if let Some(capture_plan) = &plan.capture {
         if let Some(env_map) = &capture_plan.environment_variables {

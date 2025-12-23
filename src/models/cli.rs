@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
+#[command(version, about)]
 pub struct Args {
     /// Generate a test_requests.toml template file to use
     #[arg(
@@ -54,6 +55,10 @@ pub struct Args {
     /// Write output to a specific file instead of stdout
     #[arg(short, long)]
     pub output: Option<PathBuf>,
+
+    /// Disable SSL certificate verification (Use with caution)
+    #[arg(short = 'k', long)]
+    pub insecure: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]

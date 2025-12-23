@@ -10,4 +10,4 @@ The full terms are available in the included file [LICENSE](LICENSE.txt).
 Alternatively, you may view the terms online at <http://www.gnu.org/licenses/>.
 
 
-![Project Screenshot](assets/screenshot_output.png)
+![Project Screenshot](assets/screenshot_output_2.png)

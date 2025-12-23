@@ -32,7 +32,7 @@ pub enum AlixtError {
     #[error("Failed to parse JSON body: {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("HTTP request failed")]
+    #[error("HTTP request failed:\n{0:#?}")]
     Request(#[from] reqwest::Error),
 
     #[error("Configuration error: {0}")]

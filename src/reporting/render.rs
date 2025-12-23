@@ -122,7 +122,6 @@ pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> R
         BOTTOM_RIGHT.blue()
     )?;
     for table in tables {
-        writeln!(writer, "\n")?;
         table.render(writer)?
     }
 

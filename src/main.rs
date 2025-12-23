@@ -15,8 +15,9 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-use alixt::{models::cli::Args, utils};
+use alixt::{models::{cli::Args, error::AlixtError}, utils};
 use clap::Parser;
+use colored::Colorize;
 use std::process::exit;
 
 #[tokio::main]
@@ -56,6 +57,16 @@ async fn main() {
 
     match alixt::run(&mut writer, args).await {
         Ok(_) => exit(0),
+        Err(AlixtError::Request(e)) => {
+            let err_msg = format!("{e:#?}");
+            eprintln!("Error: {e:#?}");
+
+            if err_msg.contains("InvalidCertificate") {
+                eprintln!("\n{}The server's certificate is not trusted.", "HINT: ".yellow().bold());
+                eprintln!("    Try running with {} or {} to bypass this check", "--insecure".green(), "-k".green())
+            }
+            exit(1);
+        },
         Err(e) => {
             eprintln!("Error: {e}");
             exit(1);
