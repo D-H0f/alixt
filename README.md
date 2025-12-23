@@ -11,3 +11,5 @@ Alternatively, you may view the terms online at <http://www.gnu.org/licenses/>.
 
 
 ![Project Screenshot](assets/screenshot_output_2.png)
+
+![Example Screenshot](assets/screenshot_output_3.png)
