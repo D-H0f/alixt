@@ -83,7 +83,7 @@ pub async fn run<W: std::io::Write>(
             generate_text(writer, outcome)?;
         }
         OutputFormat::Table => {
-            generate_table(writer, outcome)?;
+            generate_table(writer, outcome, args.verbose)?;
         }
         OutputFormat::Json => {
             generate_json(writer, outcome)?;

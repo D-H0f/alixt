@@ -59,6 +59,10 @@ pub struct Args {
     /// Disable SSL certificate verification (Use with caution)
     #[arg(short = 'k', long)]
     pub insecure: bool,
+
+    /// See detailed information on assertion failures
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]

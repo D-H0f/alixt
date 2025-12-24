@@ -15,6 +15,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+#![allow(unused)]
 use std::path::PathBuf;
 use std::{collections::HashMap, io::Write};
 
@@ -107,8 +108,8 @@ pub fn generate_pretty<W: Write>(writer: &mut W) -> std::io::Result<()> {
 }
 
 
-pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
-    let mut run_headers = HashMap::new();
+pub fn generate<W: Write>(_writer: &mut W) -> Result<(), AlixtError> {
+    /*let mut run_headers = HashMap::new();
     run_headers.insert("Content-Type".to_string(), "application/json".to_string());
     let mut login_capture = HashMap::new();
     login_capture.insert("auth_token".to_string(), "token".to_string());
@@ -209,5 +210,6 @@ r#"{
     let toml_string = toml::to_string_pretty(&config)?;
 
     write!(writer, "{toml_string}")?;
+*/
     Ok(())
 }

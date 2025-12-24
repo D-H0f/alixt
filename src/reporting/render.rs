@@ -14,13 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
-use serde_json::Value;
 use colored::Colorize;
+use serde_json::Value;
 
-use crate::{models::{error::AlixtError, test_data::TestData}, reporting::table::{BOTTOM_LEFT, BOTTOM_RIGHT, HORIZONTAL, TOP_LEFT, TOP_RIGHT, Table, VERTICAL}};
+use crate::{
+    models::{
+        error::AlixtError,
+        test_data::{AssertionOutcome, FailureType, TestData},
+    },
+    reporting::table::{
+        BOTTOM_LEFT, BOTTOM_RIGHT, HORIZONTAL, TOP_LEFT, TOP_RIGHT, Table, VERTICAL,
+    },
+};
 
-pub fn generate_text<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Result<(), AlixtError> {
+pub fn generate_text<W: std::io::Write>(
+    writer: &mut W,
+    outcome: TestData,
+) -> Result<(), AlixtError> {
     writeln!(writer, "[TEST RESULTS]")?;
     for run in outcome.run_data {
         writeln!(writer, "\n[RUN]: '{}'", run.name)?;
@@ -30,7 +40,7 @@ pub fn generate_text<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Re
                 "\n[REQUEST]: '{}',\nTarget: '{}',\nPassed: {},\nBreaking: {},\nDuration: {} seconds,",
                 req.name,
                 req.url,
-                req.passing,
+                req.passing.is_passing(),
                 req.breaking,
                 req.duration.as_secs_f64(),
             )?;
@@ -49,24 +59,45 @@ pub fn generate_text<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Re
     Ok(())
 }
 
-pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Result<(), AlixtError> {
-    let mut tables: Vec<Table<5>> = vec![];
+struct TableData {
+    table: Table<5>,
+    assertions: Vec<(String, AssertionOutcome)>,
+}
+
+pub fn generate_table<W: std::io::Write>(
+    writer: &mut W,
+    outcome: TestData,
+    verbose: bool,
+) -> Result<(), AlixtError> {
+    let mut tables: Vec<TableData> = vec![];
     let mut passing: u16 = 0;
     let mut failing: u16 = 0;
-    for run in outcome.run_data {
+    for mut run in outcome.run_data {
         let mut failed = false;
-        let mut table = Table::<5>::new()
-            .title(run.name.blue())
-            .headers(["".white(), "Result".blue(), "Name".blue(), "Code".blue(), "Duration".blue()])
-            .collect()?;
-        for request in &run.outcomes {
-            let passed = if request.passing {
+        let mut table = TableData {
+            table: Table::<5>::new()
+                .title(run.name.blue())
+                .headers([
+                    "".white(),
+                    "Result".blue(),
+                    "Name".blue(),
+                    "Code".blue(),
+                    "Duration".blue(),
+                ])
+                .collect()?,
+            assertions: Vec::new(),
+        };
+        for request in &mut run.outcomes {
+            let passed = if request.passing.is_passing() {
                 "PASS".green()
             } else {
+                table
+                    .assertions
+                    .push((request.name.clone(), request.passing.take()));
                 failed = true;
                 "FAIL".red()
             };
-            let breaking = if request.breaking && !request.passing {
+            let breaking = if request.breaking && !request.passing.is_passing() {
                 "BREAK".red()
             } else {
                 "".white()
@@ -76,7 +107,7 @@ pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> R
             } else {
                 "".white()
             };
-            table.push_row([
+            table.table.push_row([
                 breaking,
                 passed,
                 request.name.yellow(),
@@ -122,7 +153,81 @@ pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> R
         BOTTOM_RIGHT.blue()
     )?;
     for table in tables {
-        table.render(writer)?
+        table.table.render(writer)?;
+        if !verbose || table.assertions.is_empty() {
+            continue;
+        }
+        for (name, assertion_data) in table.assertions {
+            let AssertionOutcome::Failed(fails) = assertion_data else {
+                continue;
+            };
+            let mut request_table = Table::<3>::new()
+                .title(format!("{name} failed assertions").red())
+                .headers(["reason".blue(), "expected".green(), "found".red()])
+                .collect()?;
+            for fail in fails {
+                match fail {
+                    FailureType::StatusMismatch { expected, found } => {
+                        request_table.push_row([
+                            "StatusMismatch".blue(),
+                            format!("{}", expected).green(),
+                            found.map_or("None".to_string(), |n| n.to_string()).red(),
+                        ])?;
+                    }
+                    FailureType::InvalidJson() => {
+                        request_table.push_row([
+                            "InvalidJson".blue(),
+                            "Json".green(),
+                            "Not Json".red(),
+                        ])?;
+                    },
+                    FailureType::JsonMissingField { path } => {
+                        request_table.push_row([
+                            "JsonMissingField".blue(),
+                            path.green(),
+                            "None".red(),
+                        ])?;
+                    },
+                    FailureType::JsonExtraField { path } => {
+                        request_table.push_row([
+                            "JsonExtraField".blue(),
+                            "None".green(),
+                            path.red(),
+                        ])?;
+                    },
+                    FailureType::JsonValueMismatch {
+                        path,
+                        expected,
+                        found,
+                    } => {
+                        request_table.push_row([
+                            "JsonValueMismatch".blue(),
+                            format!("{} = {}", path, expected).green(),
+                            found.red(),
+                        ])?;
+                    },
+                    FailureType::JsonRegexMismatch {
+                        path,
+                        pattern,
+                        found,
+                    } => {
+                        request_table.push_row([
+                            "JsonRegexMismatch".blue(),
+                            format!("{} = {}", path, pattern).green(),
+                            found.red(),
+                        ])?;
+                    },
+                    FailureType::JsonNotString { path } => {
+                        request_table.push_row([
+                            "JsonNotString".blue(),
+                            format!("{} = <String>", path).green(),
+                            "Not A String".red(),
+                        ])?;
+                    },
+                }
+            }
+            request_table.render(writer)?;
+        }
     }
 
     if failing == 0 {
@@ -170,11 +275,14 @@ pub fn generate_table<W: std::io::Write>(writer: &mut W, outcome: TestData) -> R
             BOTTOM_RIGHT.yellow()
         )?;
     }
-    
+
     Ok(())
 }
 
-pub fn generate_json<W: std::io::Write>(writer: &mut W, outcome: TestData) -> Result<(), AlixtError> {
+pub fn generate_json<W: std::io::Write>(
+    writer: &mut W,
+    outcome: TestData,
+) -> Result<(), AlixtError> {
     serde_json::to_writer_pretty(&mut *writer, &outcome)?;
     writeln!(writer)?;
     Ok(())

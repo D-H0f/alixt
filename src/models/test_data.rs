@@ -55,7 +55,7 @@ pub struct RequestOutcome {
     pub method: String,
     pub url: String,
 
-    pub passing: bool,
+    pub passing: AssertionOutcome,
     pub breaking: bool,
 
     pub status: Option<u16>,
@@ -67,4 +67,44 @@ pub struct RequestOutcome {
 
 fn serialize_duration_as_seconds<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_f64(duration.as_secs_f64())
+}
+
+#[derive(Debug, Serialize)]
+pub enum AssertionOutcome {
+    Passed,
+    Failed(Vec<FailureType>),
+}
+impl AssertionOutcome {
+    pub fn push(&mut self, failure: FailureType) {
+        match self {
+            Self::Passed => *self = Self::Failed(vec![failure]),
+            Self::Failed(fails) => fails.push(failure),
+        }
+    }
+    pub fn is_passing(&self) -> bool {
+        match self {
+            Self::Passed => true,
+            Self::Failed(_) => false,
+        }
+    }
+    pub fn take(&mut self) -> Self {
+        match self {
+            Self::Passed => {
+                std::mem::replace(self, AssertionOutcome::Passed)
+            },
+            Self::Failed(_) => {
+                std::mem::replace(self, AssertionOutcome::Failed(Vec::new()))
+            },
+        }
+    }
+}
+#[derive(Debug, Serialize)]
+pub enum FailureType {
+    StatusMismatch{ expected: u16, found: Option<u16> },
+    InvalidJson(),
+    JsonMissingField { path: String },
+    JsonExtraField { path: String },
+    JsonValueMismatch { path: String, expected: String, found: String },
+    JsonRegexMismatch { path: String, pattern: String, found: String },
+    JsonNotString { path: String },
 }

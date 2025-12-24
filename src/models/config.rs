@@ -16,6 +16,7 @@
 
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use clap::ValueEnum;
 
@@ -112,7 +113,11 @@ pub struct Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Assert {
-    pub status: u16,
+    #[serde(default)]
     pub breaking: bool,
-    pub body: Option<String>,
+    pub status: Option<u16>,
+    pub body_matches: Option<HashMap<String, Value>>,
+    pub subset_matches: Option<HashMap<String, Value>>,
+    pub subset_includes: Option<Vec<String>>,
+    pub subset_regex: Option<HashMap<String, Value>>,
 }
