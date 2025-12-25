@@ -19,97 +19,115 @@
 use std::path::PathBuf;
 use std::{collections::HashMap, io::Write};
 
+use serde_json::Value;
+
 use crate::models::config::*;
 use crate::models::error::AlixtError;
 
 const PRETTY_TEMPLATE: &str = r#"
-# --- Initial Capture Run ---
 [capture]
-  env_file = "./secrets.env"
+env_file = "./secrets/.env"
 
   [capture.environment_variables]
-    API_KEY = "SYS_API_KEY_V1"
-    DB_URL = "SYS_DATABASE_URL_V1"
+  host = "FORGEJO_HOST"
 
   [[capture.request]]
-    name = "Get initial login token"
-    method = "post"
-    scheme = "http"
-    host = "0.0.0.0"
-    port = 7878
-    path = "/login"
-    body = """
-{
-    "username": "my_username",
-    "password": "my_password"
-}
-"""
-
-  [capture.request.headers]
-    Content-Type = "application/json"
-
-  [capture.request.capture]
-    auth_token = "token"
-
-# --- Run Tests ---
-[[run]]
-  name = "Example Test Configuration"
+  name = "Get Forgejo Version"
   method = "get"
-  scheme = "http"
-  host = "0.0.0.0"
+  scheme = "https"
+  host = "{{host}}"
   port = 7878
+  path = "/api/v1/version"
+
+    [capture.request.headers]
+    Accept = "application/json"
+
+    [capture.request.capture]
+    forgejo_version = "/version"
+
+[[run]]
+name = "Example Test Configuration"
+method = "get"
+scheme = "https"
+host = "{{host}}"
+port = 7878
 
   [run.headers]
-    Content-Type = "application/json"
+  Content-Type = "application/json"
 
   [[run.request]]
-    name = "Get Authentication Token"
-    method = "post"
-    path = "/login"
-    body = """
-{
-    "username": "my_username",
-    "password": "my_password"
-}
-"""
+  name = "Confirm Forgejo Version"
+  path = "/api/v1/version"
 
-  [run.request.capture]
-    auth_token = "token"
+    # you can override the run level defaults, if you want
+    [run.request.headers]
+    Accept = "application/json"
 
-  [[run.request]]
-    name = "Use Captured Auth Token"
-    method = "post"
-    scheme = "https"
-    path = "/accounts"
-    body = """
-{
-    "name": "Doug Walker",
-    "username": "digdug",
-    "password": "password123",
-    "email": "exapmle@example.com"
-}
-"""
-
-  [run.request.headers]
-    Authorization = "Bearer {{auth_token}}"
-    Content-Type = "application/json"
-
-  [run.request.assert]
-    status = 200
+    [run.request.assert]
     breaking = true
-    body = """
-{
-    "id": 2
-}
-"""
+    status = 200
+    subset_includes = ["/version"]
+
+    [run.request.assert.body_matches]
+    "/version" = "13.0.2+gitea-1.22.0"
+
+    [run.request.assert.subset_matches]
+    "/version" = "{{forgejo_version}}"
+
+    [run.request.assert.subset_regex]
+    "/version" = '^\d+\..*gitea.*$'
+
+  [[run.request]]
+  name = "Some Random Example"
+  method = "post"
+  scheme = "https"
+  path = "/signup"
+  body = """
+  {
+      "name": "Doug Walker",
+      "username": "digdug",
+      "password": "password123",
+      "email": "exapmle@example.com"
+  }
+  """
 "#;
+
+
 pub fn generate_pretty<W: Write>(writer: &mut W) -> std::io::Result<()> {
     writeln!(writer, "{}", PRETTY_TEMPLATE)
 }
 
 
-pub fn generate<W: Write>(_writer: &mut W) -> Result<(), AlixtError> {
-    /*let mut run_headers = HashMap::new();
+pub fn generate<W: Write>(writer: &mut W) -> Result<(), AlixtError> {
+    let mut capture = Capture {
+        env_file: Some(PathBuf::from("./secrets/.env")),
+        environment_variables: None,
+        request: None,
+    };
+    let mut environment_variables = HashMap::<String, String>::new();
+    environment_variables.insert("host".to_string(), "FORGEJO_HOST".to_string());
+    capture.environment_variables = Some(environment_variables);
+    let mut capture_request = CaptureRequest {
+        name: Some("Get Forgejo Version".to_string()),
+        headers: None,
+        method: Method::Get,
+        scheme: Scheme::Https,
+        host: "{{host}}".to_string(),
+        port: Some(7878),
+        path: Some("/api/v1/version".to_string()),
+        body: None,
+        capture: None,
+    };
+    let mut capture_headers = HashMap::<String, String>::new();
+    capture_headers.insert("Accept".to_string(), "application/json".to_string());
+    capture_request.headers = Some(capture_headers.clone());
+    let mut capture_map = HashMap::<String, String>::new();
+    capture_map.insert("forgejo_version".to_string(), "/version".to_string());
+    capture_request.capture = Some(capture_map);
+    capture.request = Some(vec![capture_request]);
+
+
+    let mut run_headers = HashMap::new();
     run_headers.insert("Content-Type".to_string(), "application/json".to_string());
     let mut login_capture = HashMap::new();
     login_capture.insert("auth_token".to_string(), "token".to_string());
@@ -126,57 +144,55 @@ pub fn generate<W: Write>(_writer: &mut W) -> Result<(), AlixtError> {
     "email": "exapmle@example.com"
 }
 "#;
+    let mut body_matches = HashMap::<String, Value>::new();
+    body_matches.insert("/version".to_string(), Value::String("13.0.2+gitea-1.22.0".to_string()));
 
-    let mut request_headers = HashMap::new();
-    request_headers.insert("Content-Type".to_string(), "application/json".to_string());
-    request_headers.insert(
-        "Authorization".to_string(),
-        "Bearer {{auth_token}}".to_string(),
-    );
+    let mut subset_matches = HashMap::<String, Value>::new();
+    subset_matches.insert("/version".to_string(), Value::String("{{forgejo_version}}".to_string()));
+
+    let mut subset_regex = HashMap::<String, Value>::new();
+    subset_regex.insert("/version".to_string(), Value::String(r#"^\d+\..*gitea.*$"#.to_string()));
 
     let login_run = Run {
         name: "Example Test Configuration".to_string(),
         headers: Some(run_headers.clone()),
         method: Some(Method::Get),
         scheme: Some(Scheme::Http),
-        host: Some("0.0.0.0".to_string()),
+        host: Some("{{host}}".to_string()),
         port: Some(7878),
         path: None,
         body: None,
         request: vec![
             Request {
-                name: "Get Authentication Token".to_string(),
-                headers: None,
-                method: Some(Method::Post),
-                scheme: None,
-                host: None,
-                port: None,
-                path: Some("/login".to_string()),
-                body: Some(login_body.to_string()),
-                capture: Some(login_capture.clone()),
-                assert: None,
-            },
-            Request {
-                name: "Use Captured Auth Token".to_string(),
-                headers: Some(request_headers),
-                method: Some(Method::Post),
+                name: "Confirm Forgejo Version".to_string(),
+                headers: Some(capture_headers),
+                method: Some(Method::Get),
                 scheme: Some(Scheme::Https),
                 host: None,
                 port: None,
-                path: Some("/accounts".to_string()),
-                body: Some(request_body.to_string()),
+                path: Some("/api/v1/version".to_string()),
+                body: None,
                 capture: None,
                 assert: Some(Assert {
-                    status: 200,
                     breaking: true,
-                    body: Some(
-r#"{
-    "id": 2
-}
-"#
-                        .to_string(),
-                    ),
+                    status: Some(200),
+                    body_matches: Some(body_matches),
+                    subset_matches: Some(subset_matches),
+                    subset_includes: Some(vec!["/version".to_string()]),
+                    subset_regex: Some(subset_regex),
                 }),
+            },
+            Request {
+                name: "Some Random Example".to_string(),
+                headers: Some(run_headers),
+                method: Some(Method::Get),
+                scheme: Some(Scheme::Https),
+                host: None,
+                port: None,
+                path: Some("/api".to_string()),
+                body: Some(request_body.to_string()),
+                capture: None,
+                assert: None,
             },
         ],
     };
@@ -187,7 +203,7 @@ r#"{
     let environment_variables = Some(environment_variables);
 
     let config = Config {
-        capture: Some(Capture {
+        capture: Some(/*Capture {
             env_file: Some(PathBuf::from("./secrets.env")),
             environment_variables,
             request: Some(vec![
@@ -203,13 +219,13 @@ r#"{
                     capture: Some(login_capture),
                 }
             ]),
-        }),
+        }*/capture),
         run: vec![login_run],
     };
 
     let toml_string = toml::to_string_pretty(&config)?;
 
     write!(writer, "{toml_string}")?;
-*/
+
     Ok(())
 }

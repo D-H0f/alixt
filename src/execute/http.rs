@@ -146,7 +146,7 @@ async fn execute_request(
 
     if let Some(assert) = request.assert {
         outcome.breaking = assert.breaking;
-        outcome.passing = assert_response(json.as_ref(), &assert, outcome.status);
+        outcome.passing = assert_response(json.as_ref(), &assert, outcome.status, state);
     }
     Ok(outcome)
 }
@@ -155,6 +155,7 @@ fn assert_response(
     body_json: Option<&Value>,
     assertions: &Assert,
     status: Option<u16>,
+    state: &mut RunState,
 ) -> AssertionOutcome {
     let mut outcome = AssertionOutcome::Passed;
     if let Some(expected) = assertions.status {
@@ -183,7 +184,8 @@ fn assert_response(
 
     let check_subset = |expected: &HashMap<String, Value>,
                         outcome: &mut AssertionOutcome,
-                        regex: bool| {
+                        regex: bool,
+                        state: &mut RunState| {
         for (path, expected_value) in expected {
             // IMMUTABLE REF CLONED FROM ENV SCOPE HERE
             match json.pointer(path) {
@@ -196,7 +198,8 @@ fn assert_response(
                         });
                         continue;
                     };
-                    let Ok(re) = regex::Regex::new(pattern) else {
+                    let pattern = state.substitute_values_in_text(pattern);
+                    let Ok(re) = regex::Regex::new(pattern.as_str()) else {
                         outcome.push(FailureType::JsonRegexMismatch {
                             path: path.clone(),
                             pattern: pattern.to_string(),
@@ -218,7 +221,12 @@ fn assert_response(
                     if expected_value.as_str() == Some("*") {
                         continue;
                     } else {
-                        if expected_value != value {
+                        let expected_value = if let Value::String(expected_str) = expected_value {
+                            Value::String(state.substitute_values_in_text(expected_str.as_str()).to_string())
+                        } else {
+                            expected_value.clone()
+                        };
+                        if &expected_value != value {
                             outcome.push(FailureType::JsonValueMismatch {
                                 path: path.clone(),
                                 expected: format!("{expected_value}"),
@@ -240,10 +248,10 @@ fn assert_response(
                 outcome.push(FailureType::JsonExtraField { path: path.clone() });
             }
         }
-        check_subset(expected, &mut outcome, false);
+        check_subset(expected, &mut outcome, false, state);
     }
     if let Some(expected) = assertions.subset_matches.as_ref() {
-        check_subset(expected, &mut outcome, false);
+        check_subset(expected, &mut outcome, false, state);
     }
     if let Some(expected) = assertions.subset_includes.as_ref() {
         for path in expected {
@@ -254,7 +262,7 @@ fn assert_response(
         }
     }
     if let Some(expected) = assertions.subset_regex.as_ref() {
-        check_subset(expected, &mut outcome, true);
+        check_subset(expected, &mut outcome, true, state);
     }
     outcome
 }
